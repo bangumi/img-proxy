@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"github.com/go-resty/resty/v2"
 	roundrobin "github.com/hlts2/round-robin"
@@ -28,7 +29,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 )
 import "github.com/natefinch/atomic"
 import "github.com/spf13/pflag"
@@ -44,8 +44,6 @@ func init() {
 	pflag.StringVar(&cacheDir, "cache", "tmp/.cache", "local cache dir")
 	pflag.Parse()
 }
-
-const sizeErrorMessage = "invalid size, should be `${width}` or `${width}x${height}`, example: 800, 800x400, 600x0"
 
 func main() {
 	var upstreams []*url.URL
@@ -68,7 +66,12 @@ func main() {
 	e := echo.New()
 
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		_ = c.String(http.StatusInternalServerError, err.Error())
+		var ee *echo.HTTPError
+		if errors.As(err, &ee) {
+			_ = c.JSON(ee.Code, err.Error())
+		} else {
+			_ = c.String(http.StatusInternalServerError, err.Error())
+		}
 	}
 
 	e.GET("/", func(c echo.Context) error {
@@ -85,41 +88,22 @@ func main() {
 			return c.String(http.StatusNotFound, "")
 		}
 
-		userSize := strings.ToLower(c.Param("size"))
+		userSize := c.Param("size")
 		if userSize == "" {
 			return c.String(http.StatusNotFound, "")
 
 		}
 
-		var size Size
-		if strings.Contains(userSize, "x") {
-			s := strings.SplitN(userSize, "x", 2)
-			if len(s) != 2 {
-				return c.String(http.StatusBadRequest, sizeErrorMessage)
-			}
-
-			size.Width, err = strconv.ParseUint(s[0], 10, 64)
-			if err != nil {
-				return c.String(http.StatusBadRequest, sizeErrorMessage)
-			}
-
-			size.Height, err = strconv.ParseUint(s[1], 10, 64)
-			if err != nil {
-				return c.String(http.StatusBadRequest, sizeErrorMessage)
-			}
-		} else {
-			size.Width, err = strconv.ParseUint(userSize, 10, 64)
-			if err != nil {
-				return c.String(http.StatusBadRequest, sizeErrorMessage)
-			}
+		size, err := ParseSize(userSize)
+		if err != nil {
+			return err
 		}
 
 		if !validSize(size) {
-			return c.String(http.StatusBadRequest, "not valid size, check readme for more details")
+			return invalidSizeErr
 		}
 
 		host := rr.Next()
-
 		b, mimeType, err := fetchImage(host, p, size)
 		if err != nil {
 			return err
