@@ -21,7 +21,10 @@ func TestParseSize(t *testing.T) {
 			input: "2xx00",
 			err:   true,
 		},
-
+		{
+			input: "2xx300",
+			err:   true,
+		},
 		{
 			input: "2x300",
 			size:  Size{Width: 2, Height: 300},
