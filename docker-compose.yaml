@@ -1,19 +1,59 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  imaginary-9000:
-    image: h2non/imaginary
-    command: -cors -gzip -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+  http-gateway:
+    container_name: "chii-app-img-proxy"
+    image: ghcr.io/bangumi/img-proxy:latest
+    command:
+      - --upstream
+      - http://imaginary-1:9000
+      - --upstream
+      - http://imaginary-2:9000
+      - --s3.entrypoint
+      - minio:9000
+      - --s3.access-key
+      - ...
+      - --s3.secret-key
+      - ...
     ports:
-      - '9000:9000'
+      - "127.0.0.1:8003:8003"
+    volumes:
+      - /home/ubuntu/img-cache/:/img-cache/
+    environment:
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8003"
 
-  imaginary-9001:
+  imaginary-1:
+    container_name: "chii-base-imaginary-1"
     image: h2non/imaginary
-    command: -cors -gzip -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+    command: -cors -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
     ports:
-      - '9001:9000'
+      - "127.0.0.1:9001:9000"
+    extra_hosts:
+      - "lain.bgm.tv:192.168.165.190"
 
-#  imgproxy:
-#    image: darthsim/imgproxy:latest
-#    ports:
-#      - '8053:8000'
+  imaginary-2:
+    container_name: "chii-base-imaginary-2"
+    image: h2non/imaginary
+    command: -cors -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+    ports:
+      - "127.0.0.1:9002:9000"
+    extra_hosts:
+      - "lain.bgm.tv:192.168.165.190"
+
+  minio:
+    image: "minio/minio:RELEASE.2022-08-13T21-54-44Z.fips"
+    container_name: "chii-base-minio"
+    command: "server /mnt/"
+    restart: unless-stopped
+    expose:
+      - 9000
+    ports:
+      - "127.0.0.1:8999:8999"
+      - "127.0.0.1:9000:9000"
+    environment:
+      MINIO_ROOT_USER: "..."
+      MINIO_ROOT_PASSWORD: "..."
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    volumes:
+      - "...:/mnt"
