@@ -17,11 +17,10 @@ package main
 import (
 	"bytes"
 	_ "embed"
-	"encoding/hex"
+	"fmt"
 	"github.com/go-resty/resty/v2"
 	roundrobin "github.com/hlts2/round-robin"
 	"github.com/labstack/echo/v4"
-	"golang.org/x/crypto/blake2b"
 	"mime"
 	"net/http"
 	"net/url"
@@ -29,6 +28,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 import "github.com/natefinch/atomic"
 import "github.com/spf13/pflag"
@@ -45,13 +45,7 @@ func init() {
 	pflag.Parse()
 }
 
-func validHeight(height int) bool {
-	if height == 100 || height == 200 || height == 400 || height == 600 || height == 800 || height == 1200 {
-		return true
-	}
-
-	return false
-}
+const sizeErrorMessage = "invalid size, should be `${width}` or `${width}x${height}`, example: 800, 800x400, 600x0"
 
 func main() {
 	var upstreams []*url.URL
@@ -85,35 +79,53 @@ func main() {
 		return c.String(http.StatusOK, readme)
 	})
 
-	e.GET("/r/:height/*", func(c echo.Context) error {
-		path := c.Param("*")
-		if path == "" {
+	e.GET("/r/:size/*", func(c echo.Context) error {
+		p := c.Param("*")
+		if p == "" {
 			return c.String(http.StatusNotFound, "")
 		}
 
-		height, err := strconv.Atoi(c.Param("height"))
-		if err != nil {
-			return c.String(http.StatusBadRequest, "height is not valid int")
+		userSize := strings.ToLower(c.Param("size"))
+		if userSize == "" {
+			return c.String(http.StatusNotFound, "")
+
 		}
 
-		if !validHeight(height) {
-			return c.String(http.StatusBadRequest, "not valid height, only 100/200/400/600/800/1200 are allowed")
+		var size Size
+		if strings.Contains(userSize, "x") {
+			s := strings.SplitN(userSize, "x", 2)
+			if len(s) != 2 {
+				return c.String(http.StatusBadRequest, sizeErrorMessage)
+			}
+
+			size.Width, err = strconv.ParseUint(s[0], 10, 64)
+			if err != nil {
+				return c.String(http.StatusBadRequest, sizeErrorMessage)
+			}
+
+			size.Height, err = strconv.ParseUint(s[1], 10, 64)
+			if err != nil {
+				return c.String(http.StatusBadRequest, sizeErrorMessage)
+			}
+		} else {
+			size.Width, err = strconv.ParseUint(userSize, 10, 64)
+			if err != nil {
+				return c.String(http.StatusBadRequest, sizeErrorMessage)
+			}
+		}
+
+		if !validSize(size) {
+			return c.String(http.StatusBadRequest, "not valid size, check readme for more details")
 		}
 
 		host := rr.Next()
 
-		u := &url.URL{
-			Scheme: "http",
-			Host:   "lain.bgm.tv",
-			Path:   "/" + path,
-		}
-
-		bytes, mimeType, err := fetchImage(host, u, height)
+		b, mimeType, err := fetchImage(host, p, size)
 		if err != nil {
 			return err
 		}
 
-		return c.Blob(http.StatusOK, mimeType, bytes)
+		return c.Blob(http.StatusOK, mimeType, b)
 	})
 
 	host := os.Getenv("HTTP_HOST")
@@ -131,8 +143,8 @@ func main() {
 
 var client = resty.New()
 
-func fetchImage(upstream, u *url.URL, height int) ([]byte, string, error) {
-	cachedPath, err := localCacheFilePath(u, height)
+func fetchImage(upstream *url.URL, p string, size Size) ([]byte, string, error) {
+	cachedPath := localCacheFilePath(p, size)
 
 	f, err := os.ReadFile(cachedPath)
 	if err == nil {
@@ -143,9 +155,15 @@ func fetchImage(upstream, u *url.URL, height int) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	upstreamUrl := upstream.String() + "/resize?" + url.Values{
-		"height": {strconv.Itoa(height)},
-		"url":    {u.String()},
+	action := "crop"
+	if size.Height == 0 || size.Width == 0 {
+		action = "resize"
+	}
+
+	upstreamUrl := upstream.String() + "/" + action + "?" + url.Values{
+		"height": {strconv.FormatUint(size.Height, 10)},
+		"width":  {strconv.FormatUint(size.Width, 10)},
+		"url":    {"http://lain.bgm.tv/" + p},
 	}.Encode()
 
 	resp, err := client.R().Get(upstreamUrl)
@@ -172,24 +190,13 @@ func fetchImage(upstream, u *url.URL, height int) ([]byte, string, error) {
 	return content, resp.Header().Get(echo.HeaderContentType), err
 }
 
-func localCacheFilePath(u *url.URL, height int) (string, error) {
-	fs, err := hashFilename(u, height)
-	if err != nil {
-		return "", err
-	}
+func localCacheFilePath(p string, size Size) string {
+	fs := hashFilename(p, size)
 
-	return filepath.Join(cacheDir, string(fs[0]), string(fs[1]), fs), nil
+	return filepath.Join(cacheDir, fs)
 }
 
-func hashFilename(u *url.URL, height int) (string, error) {
-	h, err := blake2b.New256(nil)
-	if err != nil {
-		return "", err
-	}
-
-	h.Write([]byte(u.String()))
-
-	ext := path.Ext(u.Path)
-
-	return hex.EncodeToString(h.Sum(nil)) + "@" + strconv.Itoa(height) + ext, nil
+func hashFilename(p string, size Size) string {
+	ext := path.Ext(p)
+	return fmt.Sprintf("%s%s@%dx%d%s", path.Dir(p), path.Base(p), size.Width, size.Height, ext)
 }
