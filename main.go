@@ -45,6 +45,14 @@ func init() {
 	pflag.Parse()
 }
 
+func validHeight(height int) bool {
+	if height == 100 || height == 200 || height == 400 || height == 600 || height == 800 || height == 1200 {
+		return true
+	}
+
+	return false
+}
+
 func main() {
 	var upstreams []*url.URL
 	for _, s := range upstream {
@@ -86,24 +94,13 @@ func main() {
 			return c.String(http.StatusBadRequest, "not valid url, "+err.Error())
 		}
 
-		rawHeight, err := strconv.Atoi(q.Get("height"))
+		height, err := strconv.Atoi(q.Get("height"))
 		if err != nil {
 			return c.String(http.StatusBadRequest, "height is not valid int")
 		}
 
-		height := rawHeight - rawHeight%50
-
-		if rawHeight != height {
-			if height <= 0 {
-				return c.String(http.StatusBadRequest, "height is not valid, allowed 50,100,150...")
-			}
-
-			validQ := url.Values{
-				"height": {strconv.Itoa(height)},
-				"url":    {rawUrl},
-			}
-
-			return c.Redirect(http.StatusFound, "/resize?"+validQ.Encode())
+		if !validHeight(height) {
+			return c.String(http.StatusBadRequest, "not valid height")
 		}
 
 		host := rr.Next()
