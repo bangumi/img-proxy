@@ -155,6 +155,10 @@ func fetchImage(upstream, u *url.URL, height int) ([]byte, string, error) {
 
 	content := resp.Body()
 
+	if resp.StatusCode() > 300 {
+		return content, resp.Header().Get(echo.HeaderContentType), nil
+	}
+
 	err = os.MkdirAll(filepath.Dir(cachedPath), 0644)
 	if err != nil {
 		return nil, "", err
