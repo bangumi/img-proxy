@@ -20,10 +20,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"github.com/go-resty/resty/v2"
-	roundrobin "github.com/hlts2/round-robin"
-	"github.com/labstack/echo/v4"
-	"github.com/minio/minio-go/v7"
 	"io"
 	"net/http"
 	"net/url"
@@ -31,8 +27,12 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/go-resty/resty/v2"
+	"github.com/labstack/echo/v4"
+	"github.com/minio/minio-go/v7"
+	"github.com/spf13/pflag"
 )
-import "github.com/spf13/pflag"
 
 //go:embed readme.md
 var readmeMD string
@@ -42,7 +42,7 @@ var s3keyID string
 var s3accessKey string
 var s3secretKey string
 var s3bucket string
-var upstream []string
+var rawUpstream string
 
 func init() {
 	pflag.StringVar(&s3entryPoint, "s3.entrypoint", "", "s3 url")
@@ -50,24 +50,12 @@ func init() {
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
-	pflag.StringSliceVar(&upstream, "upstream", nil, "upstream imaginary url")
+	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
 	pflag.Parse()
 }
 
 func main() {
-	var upstreams []*url.URL
-	for _, s := range upstream {
-		u, err := url.Parse(s)
-		if err != nil {
-			panic("failed to parse upstream url: " + err.Error())
-		}
-
-		u.Path = ""
-
-		upstreams = append(upstreams, u)
-	}
-	rr, err := roundrobin.New(upstreams...)
-
+	upstream, err := url.Parse(rawUpstream)
 	if err != nil {
 		panic(err)
 	}
@@ -123,8 +111,7 @@ func main() {
 			return invalidSizeErr
 		}
 
-		host := rr.Next()
-		b, mimeType, err := h.fetchImage(c.Request().Context(), host, p, size)
+		b, mimeType, err := h.fetchImage(c.Request().Context(), upstream, p, size)
 		if err != nil {
 			return err
 		}
@@ -182,6 +169,8 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 		"width":  {strconv.FormatUint(size.Width, 10)},
 		"url":    {"http://lain.bgm.tv/" + p},
 	}.Encode()
+
+	fmt.Println(upstreamUrl)
 
 	resp, err := client.R().Get(upstreamUrl)
 	if err != nil {

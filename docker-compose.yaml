@@ -6,9 +6,7 @@ services:
     image: ghcr.io/bangumi/img-proxy:latest
     command:
       - --upstream
-      - http://imaginary-1:9000
-      - --upstream
-      - http://imaginary-2:9000
+      - http://traefik
       - --s3.entrypoint
       - minio:9000
       - --s3.access-key
@@ -23,23 +21,33 @@ services:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8003"
 
-  imaginary-1:
-    container_name: "chii-base-imaginary-1"
-    image: h2non/imaginary
-    command: -cors -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
     ports:
-      - "127.0.0.1:9001:9000"
-    extra_hosts:
-      - "lain.bgm.tv:192.168.165.190"
+      - "9080:80"
+      - "9002:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
-  imaginary-2:
-    container_name: "chii-base-imaginary-2"
+  imaginary:
     image: h2non/imaginary
-    command: -cors -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
-    ports:
-      - "127.0.0.1:9002:9000"
-    extra_hosts:
-      - "lain.bgm.tv:192.168.165.190"
+    command: -cors -gzip -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+    # noinspection ComposeUnknownKeys
+    deploy:
+      replicas: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.imaginary.rule=PathPrefix(`/resize`, `/smartcrop`)"
+      - "traefik.http.routers.imaginary.entrypoints=web"
+    expose:
+      - '9000'
 
   minio:
     image: "minio/minio:RELEASE.2022-08-13T21-54-44Z.fips"
