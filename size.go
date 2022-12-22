@@ -20,27 +20,20 @@ func ParseSize(s string) (Size, error) {
 
 	var size Size
 	var err error
-	if strings.Contains(userSize, "x") {
-		s := strings.SplitN(userSize, "x", 2)
-		if len(s) != 2 {
-			return Size{}, invalidSizeErr
-		}
 
-		size.Width, err = strconv.ParseUint(s[0], 10, 64)
-		if err != nil {
-			return Size{}, invalidSizeErr
-		}
+	width, height, found := strings.Cut(userSize, "x")
+	size.Width, err = strconv.ParseUint(width, 10, 64)
+	if err != nil {
+		return Size{}, invalidSizeErr
+	}
 
-		size.Height, err = strconv.ParseUint(s[1], 10, 64)
-		if err != nil {
-			return Size{}, invalidSizeErr
-		}
-	} else {
-		size.Width, err = strconv.ParseUint(userSize, 10, 64)
+	if found {
+		size.Height, err = strconv.ParseUint(height, 10, 64)
 		if err != nil {
 			return Size{}, invalidSizeErr
 		}
 	}
+
 	return size, nil
 }
 
