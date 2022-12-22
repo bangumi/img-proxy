@@ -23,3 +23,6 @@ size 应该是 width x height 格式，如 `200x0`, `200x200` `0x200`，width �
 - 1200
 
 不合法的尺寸参数会直接返回 bad request
+
+本仓库的代码仅仅是 http
+gateway，实际的图片处理由 [imaginary](https://github.com/h2non/imaginary) 进行
