@@ -130,6 +130,7 @@ func main() {
 		}
 		defer b.Close()
 
+		c.Response().Header().Set(echo.HeaderCacheControl, "max-age: 31536000, immutable")
 		return c.Stream(http.StatusOK, mimeType, b)
 	})
 
