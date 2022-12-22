@@ -176,7 +176,7 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 		return nil, "", err
 	}
 
-	action := "crop"
+	action := "smartcrop"
 	if size.Height == 0 || size.Width == 0 {
 		action = "resize"
 	}
