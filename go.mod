@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/hlts2/round-robin v0.0.0-20211119053418-5ea74e1f7bfc
 	github.com/labstack/echo/v4 v4.9.1
 	github.com/minio/minio-go/v7 v7.0.45
 	github.com/spf13/pflag v1.0.5
