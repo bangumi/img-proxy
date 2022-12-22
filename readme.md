@@ -10,8 +10,9 @@ example:
 
 https://lain.bgm.tv/r/400/pic/cover/l/53/6a/1453_iZIOZ.jpg
 
-size 应该是 width x height 格式，如 `200x0`, `200x200` `0x200`，width 或者 height
-为 0 表示缩放，同时指定的情况为缩放+裁剪。图片的宽高比会保持不变。
+size 应该是 `${width}` 或者 `${width}x${height}` 格式，如 `400`， `200x0`, `200x200` `0x200`。`200` 和 `200x0`含义相同。
+
+width 或者 height 为 0 表示仅缩放，同时不为0的情况为缩放+裁剪。两种情况下图片的宽高比均会保持不变。
 
 可用的 width height
 
