@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    branches-ignore:
+      - renovate/**
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  docker:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: "go.mod"
+
+      - name: Go Build Cache (build)
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg
+          key: go-cache-119-${{ hashFiles('**/go.sum') }}-build
+          restore-keys: |
+            go-cache-119-${{ hashFiles('**/go.sum') }}-
+
+      - run: go get ./...
+
+      - run: go build -o dist/img-proxy
+        name: Build Binary
+
+      - run: docker build .

@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  imaginary-9000:
+    image: h2non/imaginary
+    command: -cors -gzip -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+    ports:
+      - '9000:9000'
+
+  imaginary-9001:
+    image: h2non/imaginary
+    command: -cors -gzip -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+    ports:
+      - '9001:9000'
+
+#  imgproxy:
+#    image: darthsim/imgproxy:latest
+#    ports:
+#      - '8053:8000'
