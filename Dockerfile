@@ -1,4 +1,4 @@
-FROM gcr.io/distroless/static
+FROM gcr.io/distroless/base
 
 ENTRYPOINT ["/app/img-proxy"]
 
