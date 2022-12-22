@@ -8,7 +8,7 @@ example:
 - `/r/100x0/pic/cover/l/b4/4f/18692_E04qh.jpg`
 - `/r/0x100/pic/cover/l/b4/4f/18692_E04qh.jpg`
 
-https://lain.bgm38.com/r/400/pic/cover/l/53/6a/1453_iZIOZ.jpg
+https://lain.bgm.tv/r/400/pic/cover/l/53/6a/1453_iZIOZ.jpg
 
 size 应该是 width x height 格式，如 `200x0`, `200x200` `0x200`，width 或者 height
 为 0 表示缩放，同时指定的情况为缩放+裁剪
