@@ -81,6 +81,10 @@ func main() {
 		return c.String(http.StatusOK, readme)
 	})
 
+	e.GET("/r/", func(c echo.Context) error {
+		return c.String(http.StatusOK, readme)
+	})
+
 	e.GET("/r/:height/*", func(c echo.Context) error {
 		path := c.Param("*")
 		if path == "" {
