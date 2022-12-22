@@ -108,6 +108,9 @@ func main() {
 
 		host := rr.Next()
 
+		// 走内网，不需要 https
+		u.Scheme = "http"
+
 		bytes, mimeType, err := fetchImage(host, u, height)
 		if err != nil {
 			return err
