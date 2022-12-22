@@ -81,32 +81,28 @@ func main() {
 		return c.String(http.StatusOK, readme)
 	})
 
-	e.GET("/resize", func(c echo.Context) error {
-		q := c.QueryParams()
-
-		rawUrl := q.Get("url")
-		if rawUrl == "" {
-			return c.String(http.StatusBadRequest, "missing query url")
+	e.GET("/r/:height/*", func(c echo.Context) error {
+		path := c.Param("*")
+		if path == "" {
+			return c.String(http.StatusNotFound, "")
 		}
 
-		u, err := url.Parse(rawUrl)
-		if err != nil {
-			return c.String(http.StatusBadRequest, "not valid url, "+err.Error())
-		}
-
-		height, err := strconv.Atoi(q.Get("height"))
+		height, err := strconv.Atoi(c.Param("height"))
 		if err != nil {
 			return c.String(http.StatusBadRequest, "height is not valid int")
 		}
 
 		if !validHeight(height) {
-			return c.String(http.StatusBadRequest, "not valid height")
+			return c.String(http.StatusBadRequest, "not valid height, only 100/200/400/600/800/1200 are allowed")
 		}
 
 		host := rr.Next()
 
-		// 走内网，不需要 https
-		u.Scheme = "http"
+		u := &url.URL{
+			Scheme: "http",
+			Host:   "lain.bgm.tv",
+			Path:   "/" + path,
+		}
 
 		bytes, mimeType, err := fetchImage(host, u, height)
 		if err != nil {
