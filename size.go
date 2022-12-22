@@ -12,7 +12,7 @@ type Size struct {
 	Width  uint64
 }
 
-var invalidSizeErr = echo.NewHTTPError(http.StatusBadRequest, "invalid size format, check readme for more details or file an issue")
+var invalidSizeErr = echo.NewHTTPError(http.StatusBadRequest, "invalid size format, check readmeMD for more details or file an issue")
 
 // ParseSize return a error when size in invalid format
 func ParseSize(s string) (Size, error) {

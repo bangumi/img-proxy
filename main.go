@@ -34,7 +34,7 @@ import "github.com/natefinch/atomic"
 import "github.com/spf13/pflag"
 
 //go:embed readme.md
-var readme string
+var readmeMD string
 
 var cacheDir string
 var upstream []string
@@ -65,6 +65,8 @@ func main() {
 
 	e := echo.New()
 
+	e.Renderer = newRender()
+
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		var ee *echo.HTTPError
 		if errors.As(err, &ee) {
@@ -75,11 +77,11 @@ func main() {
 	}
 
 	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, readme)
+		return c.Render(http.StatusOK, "readme.gohtml", readmeMD)
 	})
 
 	e.GET("/r/", func(c echo.Context) error {
-		return c.String(http.StatusOK, readme)
+		return c.Render(http.StatusOK, "readme.gohtml", readmeMD)
 	})
 
 	e.GET("/r/:size/*", func(c echo.Context) error {
