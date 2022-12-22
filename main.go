@@ -116,7 +116,17 @@ func main() {
 		return c.Blob(http.StatusOK, mimeType, bytes)
 	})
 
-	e.Logger.Fatal(e.Start("127.0.0.1:8003"))
+	host := os.Getenv("HTTP_HOST")
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	port := os.Getenv("HTTP_PORT")
+	if port == "" {
+		port = "8003"
+	}
+
+	e.Logger.Fatal(e.Start(host + ":" + port))
 }
 
 var client = resty.New()
