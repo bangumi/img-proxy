@@ -30,6 +30,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 )
 import "github.com/spf13/pflag"
 
@@ -78,7 +79,7 @@ func main() {
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		var ee *echo.HTTPError
 		if errors.As(err, &ee) {
-			_ = c.JSON(ee.Code, err.Error())
+			_ = c.String(ee.Code, err.Error())
 		} else {
 			_ = c.String(http.StatusInternalServerError, err.Error())
 		}
@@ -100,6 +101,11 @@ func main() {
 		p := c.Param("*")
 		if p == "" {
 			return c.String(http.StatusNotFound, "")
+		}
+
+		err = blockedPath(p)
+		if err != nil {
+			return err
 		}
 
 		userSize := c.Param("size")
@@ -215,6 +221,15 @@ func localCacheFilePath(p string, size Size) string {
 }
 
 func hashFilename(p string, size Size) string {
-	ext := path.Ext(p)
-	return fmt.Sprintf("%s%s@%dx%d%s", path.Dir(p), path.Base(p), size.Width, size.Height, ext)
+	return fmt.Sprintf("%s%s@%dx%d", path.Dir(p), path.Base(p), size.Width, size.Height)
+}
+
+func blockedPath(p string) error {
+	if strings.HasPrefix(p, "pic/cover/") {
+		if !strings.HasPrefix(p, "pic/cover/l/") {
+			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/cover/l/' path instead")
+		}
+	}
+
+	return nil
 }
