@@ -172,10 +172,6 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 		return nil, "", err
 	}
 
-	if err.Error() != "The specified key does not exist." {
-		return nil, "", err
-	}
-
 	action := "smartcrop"
 	if size.Height == 0 || size.Width == 0 {
 		action = "resize"
