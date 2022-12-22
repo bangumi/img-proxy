@@ -16,32 +16,40 @@ package main
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
 	"github.com/go-resty/resty/v2"
 	roundrobin "github.com/hlts2/round-robin"
 	"github.com/labstack/echo/v4"
-	"mime"
+	"github.com/minio/minio-go/v7"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 )
-import "github.com/natefinch/atomic"
 import "github.com/spf13/pflag"
 
 //go:embed readme.md
 var readmeMD string
 
-var cacheDir string
+var s3entryPoint string
+var s3keyID string
+var s3accessKey string
+var s3secretKey string
+var s3bucket string
 var upstream []string
 
 func init() {
+	pflag.StringVar(&s3entryPoint, "s3.entrypoint", "", "s3 url")
+	pflag.StringVar(&s3keyID, "s3.key-id", "", "s3 token")
+	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
+	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
+	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
 	pflag.StringSliceVar(&upstream, "upstream", nil, "upstream imaginary url")
-	pflag.StringVar(&cacheDir, "cache", "tmp/.cache", "local cache dir")
 	pflag.Parse()
 }
 
@@ -84,6 +92,10 @@ func main() {
 		return c.Render(http.StatusOK, "readme.gohtml", readmeMD)
 	})
 
+	h := Handle{
+		s3: s3(),
+	}
+
 	e.GET("/r/:size/*", func(c echo.Context) error {
 		p := c.Param("*")
 		if p == "" {
@@ -106,12 +118,13 @@ func main() {
 		}
 
 		host := rr.Next()
-		b, mimeType, err := fetchImage(host, p, size)
+		b, mimeType, err := h.fetchImage(c.Request().Context(), host, p, size)
 		if err != nil {
 			return err
 		}
+		defer b.Close()
 
-		return c.Blob(http.StatusOK, mimeType, b)
+		return c.Stream(http.StatusOK, mimeType, b)
 	})
 
 	host := os.Getenv("HTTP_HOST")
@@ -129,15 +142,30 @@ func main() {
 
 var client = resty.New()
 
-func fetchImage(upstream *url.URL, p string, size Size) ([]byte, string, error) {
+type Handle struct {
+	s3 *minio.Client
+}
+
+func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size) (io.ReadCloser, string, error) {
 	cachedPath := localCacheFilePath(p, size)
 
-	f, err := os.ReadFile(cachedPath)
+	stat, err := h.s3.StatObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
 	if err == nil {
-		return f, mime.TypeByExtension(filepath.Ext(cachedPath)), nil
+		obj, err := h.s3.GetObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
+		return obj, stat.ContentType, err
 	}
 
-	if !os.IsNotExist(err) {
+	// stupid golang error handling
+	var e minio.ErrorResponse
+	if errors.As(err, &e) {
+		if e.Code != "NoSuchKey" {
+			return nil, "", err
+		}
+	} else {
+		return nil, "", err
+	}
+
+	if err.Error() != "The specified key does not exist." {
 		return nil, "", err
 	}
 
@@ -159,27 +187,31 @@ func fetchImage(upstream *url.URL, p string, size Size) ([]byte, string, error) 
 
 	content := resp.Body()
 
+	contentType := resp.Header().Get(echo.HeaderContentType)
+
 	if resp.StatusCode() > 300 {
-		return content, resp.Header().Get(echo.HeaderContentType), nil
+		return io.NopCloser(bytes.NewReader(content)), contentType, nil
 	}
 
-	err = os.MkdirAll(filepath.Dir(cachedPath), 0644)
+	_, err = h.s3.PutObject(ctx,
+		s3bucket,
+		cachedPath,
+		bytes.NewReader(resp.Body()),
+		int64(len(resp.Body())),
+		minio.PutObjectOptions{
+			ContentType: contentType,
+		})
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("failed to put s3 object %w", err)
 	}
 
-	err = atomic.WriteFile(cachedPath, bytes.NewReader(content))
-	if err != nil {
-		return nil, "", err
-	}
-
-	return content, resp.Header().Get(echo.HeaderContentType), err
+	return io.NopCloser(bytes.NewReader(content)), contentType, nil
 }
 
 func localCacheFilePath(p string, size Size) string {
 	fs := hashFilename(p, size)
 
-	return filepath.Join(cacheDir, fs)
+	return fs
 }
 
 func hashFilename(p string, size Size) string {
