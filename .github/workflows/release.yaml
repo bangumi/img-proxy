@@ -50,3 +50,9 @@ jobs:
           context: ./
           file: Dockerfile
           tags: ghcr.io/bangumi/img-proxy:${{env.TAG}}
+
+      - name: push latest tag
+        if: '${{ startsWith(github.ref, "refs/tags/") }}'
+        run: |
+          docker tag ghcr.io/bangumi/img-proxy:${{env.TAG}} ghcr.io/bangumi/img-proxy:latest
+          docker push ghcr.io/bangumi/img-proxy:latest
