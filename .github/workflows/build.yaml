@@ -32,7 +32,7 @@ jobs:
 
       - run: go get ./...
 
-      - run: go build -o dist/img-proxy -ldflags "-X 'main.version=$(git describe --match='v*')'"
+      - run: go build -o dist/img-proxy
         name: Build Binary
 
       - run: docker build .
