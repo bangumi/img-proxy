@@ -31,7 +31,7 @@ const md = new Remarkable("full", {
   typographer: true,
 });
 
-document.getElementById("content").innerHTML = md.render('{{.}}');
+document.getElementById("content").innerHTML = md.render('## running version: `{{.version}}`\n\n{{.readme}}');
 </script>
 </body>
 </html>

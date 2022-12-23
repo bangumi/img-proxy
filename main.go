@@ -73,12 +73,19 @@ func main() {
 		}
 	}
 
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Response().Header().Set("x-version", version)
+			return next(c)
+		}
+	})
+
 	e.GET("/", func(c echo.Context) error {
-		return c.Render(http.StatusOK, "readme.gohtml", readmeMD)
+		return c.Render(http.StatusOK, "readme.gohtml", map[string]string{"readme": readmeMD, "version": version})
 	})
 
 	e.GET("/r/", func(c echo.Context) error {
-		return c.Render(http.StatusOK, "readme.gohtml", readmeMD)
+		return c.Render(http.StatusOK, "readme.gohtml", map[string]string{"readme": readmeMD, "version": version})
 	})
 
 	h := Handle{
