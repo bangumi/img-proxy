@@ -217,5 +217,17 @@ func blockedPath(p string) error {
 		}
 	}
 
+	if strings.HasPrefix(p, "pic/photo/") {
+		if !strings.HasPrefix(p, "pic/photo/l/") {
+			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/photo/l/' path instead")
+		}
+	}
+
+	if strings.HasPrefix(p, "pic/crt/") {
+		if !strings.HasPrefix(p, "pic/crt/l/") {
+			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/crt/l/' path instead")
+		}
+	}
+
 	return nil
 }
