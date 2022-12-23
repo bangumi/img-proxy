@@ -22,7 +22,7 @@ services:
       HTTP_PORT: "8003"
 
   traefik:
-    image: "traefik:v2.9"
+    image: "traefik:v3.0"
     container_name: "traefik"
     command:
       #- "--log.level=DEBUG"
