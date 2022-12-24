@@ -10,7 +10,7 @@ on:
 
 jobs:
   docker:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v3
@@ -35,4 +35,6 @@ jobs:
       - run: go build -o dist/img-proxy
         name: Build Binary
 
-      - run: docker build .
+      - run: docker build -t tmp .
+
+      - run: docker run tmp -h
