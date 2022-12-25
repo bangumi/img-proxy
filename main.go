@@ -105,6 +105,10 @@ func main() {
 			return c.String(http.StatusNotFound, "")
 		}
 
+		if len(p) >= 100 {
+			return c.String(http.StatusBadRequest, "too lang url")
+		}
+
 		err = blockedPath(p)
 		if err != nil {
 			return err
