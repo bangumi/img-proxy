@@ -25,8 +25,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
@@ -166,6 +164,7 @@ type Handle struct {
 func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size) (io.ReadCloser, string, error) {
 	cachedPath := localCacheFilePath(p, size)
 
+if false {
 	stat, err := h.s3.StatObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
 	if err == nil {
 		obj, err := h.s3.GetObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
@@ -181,35 +180,20 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	} else {
 		return nil, "", err
 	}
+}
 
 	sourceURL := "http://lain.bgm.tv/" + p
 
-	img, err := client.R().Get(sourceURL)
-	if err != nil {
-		return nil, "", err
-	}
-	if img.StatusCode() == 404 {
-		return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
-	}
-
-	if img.StatusCode() >= 300 {
-		return nil, "", echo.NewHTTPError(http.StatusBadGateway, img.String())
-	}
-
-	action := "smartcrop"
+	var action string
 	if size.Height == 0 || size.Width == 0 {
-		action = "resize"
+		action = fmt.Sprintf("fit-in/%dx%d/", size.Width, size.Height)
+	} else {
+		action = fmt.Sprintf("%dx%d/smart/", size.Width, size.Height)
 	}
 
-	upstreamUrl := upstream.String() + "/" + action + "?" + url.Values{
-		"height": {strconv.FormatUint(size.Height, 10)},
-		"width":  {strconv.FormatUint(size.Width, 10)},
-		"field":  {"file"},
-	}.Encode()
+	upstreamUrl := upstream.String() + "/unsafe/" + action + sourceURL
 
-	resp, err := client.R().SetMultipartField(
-		"file", filepath.Base(p), img.Header().Get(echo.HeaderContentType), bytes.NewBuffer(img.Body()),
-	).Post(upstreamUrl)
+	resp, err := client.R().Get(upstreamUrl)
 	if err != nil {
 		return nil, "", err
 	}
