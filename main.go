@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -74,7 +75,11 @@ func main() {
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		var ee *echo.HTTPError
 		if errors.As(err, &ee) {
-			_ = c.String(ee.Code, err.Error())
+			if msg, ok := ee.Message.(string); ok {
+				_ = c.String(ee.Code, msg)
+			} else {
+				_ = c.JSON(ee.Code, ee.Message)
+			}
 		} else {
 			_ = c.String(http.StatusInternalServerError, err.Error())
 		}
@@ -177,6 +182,20 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 		return nil, "", err
 	}
 
+	sourceURL := "http://lain.bgm.tv/" + p
+
+	img, err := client.R().Get(sourceURL)
+	if err != nil {
+		return nil, "", err
+	}
+	if img.StatusCode() == 404 {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
+	}
+
+	if img.StatusCode() >= 300 {
+		return nil, "", echo.NewHTTPError(http.StatusBadGateway, img.String())
+	}
+
 	action := "smartcrop"
 	if size.Height == 0 || size.Width == 0 {
 		action = "resize"
@@ -185,12 +204,12 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	upstreamUrl := upstream.String() + "/" + action + "?" + url.Values{
 		"height": {strconv.FormatUint(size.Height, 10)},
 		"width":  {strconv.FormatUint(size.Width, 10)},
-		"url":    {"http://lain.bgm.tv/" + p},
+		"field":  {"file"},
 	}.Encode()
 
-	fmt.Println(upstreamUrl)
-
-	resp, err := client.R().Get(upstreamUrl)
+	resp, err := client.R().SetMultipartField(
+		"file", filepath.Base(p), img.Header().Get(echo.HeaderContentType), bytes.NewBuffer(img.Body()),
+	).Post(upstreamUrl)
 	if err != nil {
 		return nil, "", err
 	}
@@ -200,7 +219,7 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	contentType := resp.Header().Get(echo.HeaderContentType)
 
 	if resp.StatusCode() > 300 {
-		return io.NopCloser(bytes.NewReader(content)), contentType, nil
+		return nil, "", echo.NewHTTPError(http.StatusBadGateway, resp.String())
 	}
 
 	_, err = h.s3.PutObject(ctx,
