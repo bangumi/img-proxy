@@ -1,9 +1,10 @@
 package main
 
 import (
+	"log"
+
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"log"
 )
 
 func s3() *minio.Client {

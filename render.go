@@ -2,9 +2,10 @@ package main
 
 import (
 	"embed"
-	"github.com/labstack/echo/v4"
 	"html/template"
 	"io"
+
+	"github.com/labstack/echo/v4"
 )
 
 //go:embed templates
