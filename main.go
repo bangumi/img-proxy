@@ -137,7 +137,9 @@ func main() {
 		var hd bool
 		if c.QueryParams().Has("hd") {
 			hd, err = strconv.ParseBool(c.QueryParams().Get("hd"))
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid query 'hd' %q, should present a bool", c.QueryParams().Get("hd")))
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid query 'hd' %q, should present a bool", c.QueryParams().Get("hd")))
+			}
 		}
 
 		b, mimeType, err := h.fetchImage(c.Request().Context(), upstream, p, size, hd)
