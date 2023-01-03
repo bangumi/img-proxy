@@ -40,7 +40,6 @@ import (
 var readmeMD string
 
 var s3entryPoint string
-var s3keyID string
 var s3accessKey string
 var s3secretKey string
 var s3bucket string
@@ -48,7 +47,6 @@ var rawUpstream string
 
 func init() {
 	pflag.StringVar(&s3entryPoint, "s3.entrypoint", "", "s3 url")
-	pflag.StringVar(&s3keyID, "s3.key-id", "", "s3 token")
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
@@ -259,7 +257,7 @@ func localCacheFilePath(p string, size Size, hd bool) string {
 }
 
 func hashFilename(p string, size Size) string {
-	return fmt.Sprintf("/%s%s@%dx%d", path.Dir(p), path.Base(p), size.Width, size.Height)
+	return fmt.Sprintf("/%s/%s@%dx%d", path.Dir(p), path.Base(p), size.Width, size.Height)
 }
 
 func blockedPath(p string) error {
