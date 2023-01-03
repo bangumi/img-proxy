@@ -134,7 +134,13 @@ func main() {
 			return invalidSizeErr
 		}
 
-		b, mimeType, err := h.fetchImage(c.Request().Context(), upstream, p, size)
+		var hd bool
+		if c.QueryParams().Has("hd") {
+			hd, err = strconv.ParseBool(c.QueryParams().Get("hd"))
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid query 'hd', should present a bool")
+		}
+
+		b, mimeType, err := h.fetchImage(c.Request().Context(), upstream, p, size, hd)
 		if err != nil {
 			return err
 		}
@@ -163,8 +169,8 @@ type Handle struct {
 	s3 *minio.Client
 }
 
-func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size) (io.ReadCloser, string, error) {
-	cachedPath := localCacheFilePath(p, size)
+func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) (io.ReadCloser, string, error) {
+	cachedPath := localCacheFilePath(p, size, hd)
 
 	stat, err := h.s3.StatObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
 	if err == nil {
@@ -183,6 +189,9 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	}
 
 	sourceURL := "http://lain.bgm.tv/" + p
+	if hd {
+		sourceURL += "?hd=1"
+	}
 
 	img, err := client.R().Get(sourceURL)
 	if err != nil {
@@ -237,14 +246,18 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	return io.NopCloser(bytes.NewReader(content)), contentType, nil
 }
 
-func localCacheFilePath(p string, size Size) string {
+func localCacheFilePath(p string, size Size, hd bool) string {
 	fs := hashFilename(p, size)
+
+	if hd {
+		return "/hd" + fs
+	}
 
 	return fs
 }
 
 func hashFilename(p string, size Size) string {
-	return fmt.Sprintf("%s%s@%dx%d", path.Dir(p), path.Base(p), size.Width, size.Height)
+	return fmt.Sprintf("/%s%s@%dx%d", path.Dir(p), path.Base(p), size.Width, size.Height)
 }
 
 func blockedPath(p string) error {
