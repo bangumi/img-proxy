@@ -202,7 +202,7 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	}
 
 	if img.StatusCode() >= 300 {
-		return nil, "", echo.NewHTTPError(http.StatusBadGateway, img.String())
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
 	}
 
 	action := "smartcrop"
@@ -228,7 +228,7 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	contentType := resp.Header().Get(echo.HeaderContentType)
 
 	if resp.StatusCode() > 300 {
-		return nil, "", echo.NewHTTPError(http.StatusBadGateway, resp.String())
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, resp.String())
 	}
 
 	_, err = h.s3.PutObject(ctx,
