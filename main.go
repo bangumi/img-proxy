@@ -210,11 +210,17 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 		action = "resize"
 	}
 
-	upstreamUrl := upstream.String() + "/" + action + "?" + url.Values{
+	qs := url.Values{
 		"height": {strconv.FormatUint(size.Height, 10)},
 		"width":  {strconv.FormatUint(size.Width, 10)},
 		"field":  {"file"},
-	}.Encode()
+	}
+
+	if path.Ext(path.Base(p)) == ".jpg" {
+		qs.Set("type", "jpeg")
+	}
+
+	upstreamUrl := upstream.String() + "/" + action + "?" + qs.Encode()
 
 	resp, err := client.R().SetMultipartField(
 		"file", filepath.Base(p), img.Header().Get(echo.HeaderContentType), bytes.NewBuffer(img.Body()),
