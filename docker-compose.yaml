@@ -6,7 +6,7 @@ services:
     image: ghcr.io/bangumi/img-proxy:latest
     command:
       - --upstream
-      - http://traefik
+      - http://imaginary
       - --s3.entrypoint
       - minio:9000
       - --s3.access-key
@@ -15,30 +15,13 @@ services:
       - ...
     ports:
       - "127.0.0.1:8003:8003"
-    volumes:
-      - /home/ubuntu/img-cache/:/img-cache/
     environment:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8003"
 
-  traefik:
-    image: "traefik:v2.9"
-    container_name: "traefik"
-    command:
-      #- "--log.level=DEBUG"
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "9080:80"
-      - "9002:8080"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-
   imaginary:
     image: h2non/imaginary
-    command: -cors -gzip -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
+    command: -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
     # noinspection ComposeUnknownKeys
     deploy:
       replicas: 3
