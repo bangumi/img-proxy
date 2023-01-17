@@ -13,7 +13,7 @@ func s3() *minio.Client {
 		Creds: credentials.NewStaticV4(s3accessKey, s3secretKey, ""),
 	})
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalln("failed to create s3 client:", err)
 	}
 
 	return minioClient

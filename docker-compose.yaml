@@ -1,50 +1,27 @@
 version: "3.8"
 
 services:
-  http-gateway:
-    container_name: "chii-app-img-proxy"
-    image: ghcr.io/bangumi/img-proxy:latest
-    command:
-      - --upstream
-      - http://imaginary
-      - --s3.entrypoint
-      - minio:9000
-      - --s3.access-key
-      - ...
-      - --s3.secret-key
-      - ...
-    ports:
-      - "127.0.0.1:8003:8003"
-    environment:
-      HTTP_HOST: "0.0.0.0"
-      HTTP_PORT: "8003"
-
   imaginary:
     image: h2non/imaginary
     command: -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
-    # noinspection ComposeUnknownKeys
-    deploy:
-      replicas: 3
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.imaginary.rule=PathPrefix(`/resize`, `/smartcrop`)"
       - "traefik.http.routers.imaginary.entrypoints=web"
-    expose:
-      - '9000'
+    ports:
+      - '9000:9000'
 
   minio:
     image: "minio/minio:RELEASE.2022-08-13T21-54-44Z.fips"
     container_name: "chii-base-minio"
-    command: "server /mnt/"
+    command: "server /mnt/ --address=0.0.0.0:9001 --console-address=0.0.0.0:9002"
     restart: unless-stopped
-    expose:
-      - 9000
     ports:
-      - "127.0.0.1:8999:8999"
-      - "127.0.0.1:9000:9000"
+      - "9002:9002"
+      - "9001:9001"
     environment:
-      MINIO_ROOT_USER: "..."
-      MINIO_ROOT_PASSWORD: "..."
+      MINIO_ROOT_USER: "minio-root"
+      MINIO_ROOT_PASSWORD: "minio-root-password"
       MINIO_PROMETHEUS_AUTH_TYPE: public
     volumes:
-      - "...:/mnt"
+      - "./data/minio:/mnt"

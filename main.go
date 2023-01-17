@@ -43,6 +43,7 @@ var s3entryPoint string
 var s3accessKey string
 var s3secretKey string
 var s3bucket string
+var s3RawBucket string
 var rawUpstream string
 
 func init() {
@@ -50,6 +51,7 @@ func init() {
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
+	pflag.StringVar(&s3RawBucket, "s3.raw-bucket", "", "s3 bucket to store raw files")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
 }
 
@@ -61,9 +63,11 @@ func main() {
 
 	pflag.Parse()
 
+	fmt.Println(s3RawBucket)
+
 	upstream, err := url.Parse(rawUpstream)
 	if err != nil {
-		panic(err)
+		panic("failed to parse upstream url: " + err.Error())
 	}
 
 	e := echo.New()
@@ -144,10 +148,9 @@ func main() {
 		if err != nil {
 			return err
 		}
-		defer b.Close()
 
 		c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=31536000, immutable")
-		return c.Stream(http.StatusOK, mimeType, b)
+		return c.Blob(http.StatusOK, mimeType, b)
 	})
 
 	host := os.Getenv("HTTP_HOST")
@@ -169,31 +172,40 @@ type Handle struct {
 	s3 *minio.Client
 }
 
-func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) (io.ReadCloser, string, error) {
-	cachedPath := localCacheFilePath(p, size, hd)
+func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
+	s3Path := p
 
-	stat, err := h.s3.StatObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
-	if err == nil {
-		obj, err := h.s3.GetObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
-		return obj, stat.ContentType, err
-	}
+	if s3RawBucket != "" {
+		stat, err := h.s3.StatObject(ctx, s3RawBucket, s3Path, minio.GetObjectOptions{})
+		if err == nil {
+			obj, err := h.s3.GetObject(ctx, s3RawBucket, s3Path, minio.GetObjectOptions{})
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
+			}
+			defer obj.Close()
 
-	// stupid golang error handling
-	var e minio.ErrorResponse
-	if errors.As(err, &e) {
-		if e.Code != "NoSuchKey" {
+			raw, err := io.ReadAll(obj)
+			return raw, stat.ContentType, err
+		}
+
+		// stupid golang error handling
+		var e minio.ErrorResponse
+		if errors.As(err, &e) {
+			if e.Code != "NoSuchKey" {
+				return nil, "", err
+			}
+		} else {
 			return nil, "", err
 		}
-	} else {
-		return nil, "", err
 	}
 
+	// 生产环境走的是内网，不能用 https
 	sourceURL := "http://lain.bgm.tv/" + p
 	if hd {
 		sourceURL += "?hd=1"
 	}
 
-	img, err := client.R().Get(sourceURL)
+	img, err := client.R().SetContext(ctx).Get(sourceURL)
 	if err != nil {
 		return nil, "", err
 	}
@@ -203,6 +215,53 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 
 	if img.StatusCode() >= 300 {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
+	}
+
+	contentType := img.Header().Get(echo.HeaderContentType)
+
+	if s3RawBucket != "" {
+		_, err = h.s3.PutObject(ctx,
+			s3RawBucket,
+			s3Path,
+			bytes.NewReader(img.Body()),
+			int64(len(img.Body())),
+			minio.PutObjectOptions{ContentType: contentType})
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to save raw image to s3 %w", err)
+		}
+	}
+
+	return img.Body(), contentType, nil
+}
+
+func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
+	cachedPath := localCacheFilePath(p, size, hd)
+	//
+	//stat, err := h.s3.StatObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
+	//if err == nil {
+	//	obj, err := h.s3.GetObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
+	//	if err != nil {
+	//		return nil, "", err
+	//	}
+	//	defer obj.Close()
+	//
+	//	raw, err := io.ReadAll(obj)
+	//	return raw, stat.ContentType, err
+	//}
+	//
+	//// stupid golang error handling
+	//var e minio.ErrorResponse
+	//if errors.As(err, &e) {
+	//	if e.Code != "NoSuchKey" {
+	//		return nil, "", err
+	//	}
+	//} else {
+	//	return nil, "", err
+	//}
+
+	img, ct, err := h.fetchRawImage(ctx, p, hd)
+	if err != nil {
+		return nil, "", err
 	}
 
 	action := "smartcrop"
@@ -222,9 +281,9 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 
 	upstreamUrl := upstream.String() + "/" + action + "?" + qs.Encode()
 
-	resp, err := client.R().SetMultipartField(
-		"file", filepath.Base(p), img.Header().Get(echo.HeaderContentType), bytes.NewBuffer(img.Body()),
-	).Post(upstreamUrl)
+	resp, err := client.R().SetContext(ctx).
+		SetMultipartField("file", filepath.Base(p), ct, bytes.NewBuffer(img)).
+		Post(upstreamUrl)
 	if err != nil {
 		return nil, "", err
 	}
@@ -234,7 +293,7 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 	contentType := resp.Header().Get(echo.HeaderContentType)
 
 	if resp.StatusCode() > 300 {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, resp.String())
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "failed to process image: "+resp.String())
 	}
 
 	_, err = h.s3.PutObject(ctx,
@@ -242,14 +301,12 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 		cachedPath,
 		bytes.NewReader(resp.Body()),
 		int64(len(resp.Body())),
-		minio.PutObjectOptions{
-			ContentType: contentType,
-		})
+		minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to put s3 object %w", err)
 	}
 
-	return io.NopCloser(bytes.NewReader(content)), contentType, nil
+	return content, contentType, nil
 }
 
 func localCacheFilePath(p string, size Size, hd bool) string {
