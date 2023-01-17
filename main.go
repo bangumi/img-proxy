@@ -179,7 +179,6 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 	}
 
 	getter := func() ([]byte, string, error) {
-
 		// 生产环境走的是内网，不能用 https
 		sourceURL := "http://lain.bgm.tv/" + p
 		if hd {
@@ -198,9 +197,7 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 			return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
 		}
 
-		contentType := img.Header().Get(echo.HeaderContentType)
-
-		return img.Body(), contentType, nil
+		return img.Body(), img.Header().Get(echo.HeaderContentType), nil
 	}
 
 	if s3RawBucket == "" {
@@ -256,28 +253,26 @@ func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, siz
 }
 
 func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
-	if s3RawBucket != "" {
-		stat, err := h.s3.StatObject(ctx, s3RawBucket, filepath, minio.GetObjectOptions{})
-		if err == nil {
-			obj, err := h.s3.GetObject(ctx, s3RawBucket, filepath, minio.GetObjectOptions{})
-			if err != nil {
-				return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
-			}
-			defer obj.Close()
-
-			raw, err := io.ReadAll(obj)
-			return raw, stat.ContentType, err
+	stat, err := h.s3.StatObject(ctx, bucket, filepath, minio.GetObjectOptions{})
+	if err == nil {
+		obj, err := h.s3.GetObject(ctx, bucket, filepath, minio.GetObjectOptions{})
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
 		}
+		defer obj.Close()
 
-		// stupid golang error handling
-		var e minio.ErrorResponse
-		if errors.As(err, &e) {
-			if e.Code != "NoSuchKey" {
-				return nil, "", err
-			}
-		} else {
+		raw, err := io.ReadAll(obj)
+		return raw, stat.ContentType, err
+	}
+
+	// stupid golang error handling
+	var e minio.ErrorResponse
+	if errors.As(err, &e) {
+		if e.Code != "NoSuchKey" {
 			return nil, "", err
 		}
+	} else {
+		return nil, "", err
 	}
 
 	img, contentType, err := getter()
@@ -285,12 +280,10 @@ func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, gette
 		return nil, "", err
 	}
 
-	if s3RawBucket != "" {
-		_, err = h.s3.PutObject(ctx, bucket, filepath, bytes.NewReader(img), int64(len(img)),
-			minio.PutObjectOptions{ContentType: contentType})
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to save raw image to s3 %w", err)
-		}
+	_, err = h.s3.PutObject(ctx, bucket, filepath, bytes.NewReader(img), int64(len(img)),
+		minio.PutObjectOptions{ContentType: contentType})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to save raw image to s3 %w", err)
 	}
 
 	return img, contentType, nil
