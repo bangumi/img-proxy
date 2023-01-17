@@ -142,7 +142,7 @@ func main() {
 			}
 		}
 
-		b, mimeType, err := h.fetchImage(c.Request().Context(), upstream, p, size, hd)
+		b, mimeType, err := h.processImage(c.Request().Context(), upstream, p, size, hd)
 		if err != nil {
 			return err
 		}
@@ -205,7 +205,7 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 	return h.withS3Cached(ctx, s3RawBucket, s3Path, getter)
 }
 
-func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
+func (h Handle) processImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
 	cachedPath := localCacheFilePath(p, size, hd)
 
 	return h.withS3Cached(ctx, s3bucket, cachedPath, func() ([]byte, string, error) {
