@@ -63,8 +63,6 @@ func main() {
 
 	pflag.Parse()
 
-	fmt.Println(s3RawBucket)
-
 	upstream, err := url.Parse(rawUpstream)
 	if err != nil {
 		panic("failed to parse upstream url: " + err.Error())
