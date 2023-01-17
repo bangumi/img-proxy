@@ -173,12 +173,93 @@ type Handle struct {
 }
 
 func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
-	s3Path := p
+	s3Path := strings.TrimPrefix(p, "pic/")
+	if hd {
+		s3Path = "hd/" + s3Path
+	}
 
+	getter := func() ([]byte, string, error) {
+
+		// 生产环境走的是内网，不能用 https
+		sourceURL := "http://lain.bgm.tv/" + p
+		if hd {
+			sourceURL += "?hd=1"
+		}
+
+		img, err := client.R().SetContext(ctx).Get(sourceURL)
+		if err != nil {
+			return nil, "", err
+		}
+		if img.StatusCode() == 404 {
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
+		}
+
+		if img.StatusCode() >= 300 {
+			return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
+		}
+
+		contentType := img.Header().Get(echo.HeaderContentType)
+
+		return img.Body(), contentType, nil
+	}
+
+	if s3RawBucket == "" {
+		return getter()
+	}
+
+	return h.withS3Cached(ctx, s3RawBucket, s3Path, getter)
+}
+
+func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
+	cachedPath := localCacheFilePath(p, size, hd)
+
+	return h.withS3Cached(ctx, s3bucket, cachedPath, func() ([]byte, string, error) {
+		img, ct, err := h.fetchRawImage(ctx, p, hd)
+		if err != nil {
+			return nil, "", err
+		}
+
+		action := "smartcrop"
+		if size.Height == 0 || size.Width == 0 {
+			action = "resize"
+		}
+
+		qs := url.Values{
+			"height": {strconv.FormatUint(size.Height, 10)},
+			"width":  {strconv.FormatUint(size.Width, 10)},
+			"field":  {"file"},
+		}
+
+		if path.Ext(path.Base(p)) == ".jpg" {
+			qs.Set("type", "jpeg")
+		}
+
+		upstreamUrl := upstream.String() + "/" + action + "?" + qs.Encode()
+
+		resp, err := client.R().SetContext(ctx).
+			SetMultipartField("file", filepath.Base(p), ct, bytes.NewBuffer(img)).
+			Post(upstreamUrl)
+		if err != nil {
+			return nil, "", err
+		}
+
+		content := resp.Body()
+
+		contentType := resp.Header().Get(echo.HeaderContentType)
+
+		if resp.StatusCode() > 300 {
+			return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "failed to process image: "+resp.String())
+		}
+
+		return content, contentType, nil
+	})
+}
+
+func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
 	if s3RawBucket != "" {
-		stat, err := h.s3.StatObject(ctx, s3RawBucket, s3Path, minio.GetObjectOptions{})
+		stat, err := h.s3.StatObject(ctx, s3RawBucket, filepath, minio.GetObjectOptions{})
 		if err == nil {
-			obj, err := h.s3.GetObject(ctx, s3RawBucket, s3Path, minio.GetObjectOptions{})
+			obj, err := h.s3.GetObject(ctx, s3RawBucket, filepath, minio.GetObjectOptions{})
 			if err != nil {
 				return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
 			}
@@ -199,114 +280,20 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 		}
 	}
 
-	// 生产环境走的是内网，不能用 https
-	sourceURL := "http://lain.bgm.tv/" + p
-	if hd {
-		sourceURL += "?hd=1"
-	}
-
-	img, err := client.R().SetContext(ctx).Get(sourceURL)
+	img, contentType, err := getter()
 	if err != nil {
 		return nil, "", err
 	}
-	if img.StatusCode() == 404 {
-		return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
-	}
-
-	if img.StatusCode() >= 300 {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
-	}
-
-	contentType := img.Header().Get(echo.HeaderContentType)
 
 	if s3RawBucket != "" {
-		_, err = h.s3.PutObject(ctx,
-			s3RawBucket,
-			s3Path,
-			bytes.NewReader(img.Body()),
-			int64(len(img.Body())),
+		_, err = h.s3.PutObject(ctx, bucket, filepath, bytes.NewReader(img), int64(len(img)),
 			minio.PutObjectOptions{ContentType: contentType})
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to save raw image to s3 %w", err)
 		}
 	}
 
-	return img.Body(), contentType, nil
-}
-
-func (h Handle) fetchImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
-	cachedPath := localCacheFilePath(p, size, hd)
-	//
-	//stat, err := h.s3.StatObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
-	//if err == nil {
-	//	obj, err := h.s3.GetObject(ctx, s3bucket, cachedPath, minio.GetObjectOptions{})
-	//	if err != nil {
-	//		return nil, "", err
-	//	}
-	//	defer obj.Close()
-	//
-	//	raw, err := io.ReadAll(obj)
-	//	return raw, stat.ContentType, err
-	//}
-	//
-	//// stupid golang error handling
-	//var e minio.ErrorResponse
-	//if errors.As(err, &e) {
-	//	if e.Code != "NoSuchKey" {
-	//		return nil, "", err
-	//	}
-	//} else {
-	//	return nil, "", err
-	//}
-
-	img, ct, err := h.fetchRawImage(ctx, p, hd)
-	if err != nil {
-		return nil, "", err
-	}
-
-	action := "smartcrop"
-	if size.Height == 0 || size.Width == 0 {
-		action = "resize"
-	}
-
-	qs := url.Values{
-		"height": {strconv.FormatUint(size.Height, 10)},
-		"width":  {strconv.FormatUint(size.Width, 10)},
-		"field":  {"file"},
-	}
-
-	if path.Ext(path.Base(p)) == ".jpg" {
-		qs.Set("type", "jpeg")
-	}
-
-	upstreamUrl := upstream.String() + "/" + action + "?" + qs.Encode()
-
-	resp, err := client.R().SetContext(ctx).
-		SetMultipartField("file", filepath.Base(p), ct, bytes.NewBuffer(img)).
-		Post(upstreamUrl)
-	if err != nil {
-		return nil, "", err
-	}
-
-	content := resp.Body()
-
-	contentType := resp.Header().Get(echo.HeaderContentType)
-
-	if resp.StatusCode() > 300 {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "failed to process image: "+resp.String())
-	}
-
-	_, err = h.s3.PutObject(ctx,
-		s3bucket,
-		cachedPath,
-		bytes.NewReader(resp.Body()),
-		int64(len(resp.Body())),
-		minio.PutObjectOptions{ContentType: contentType})
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to put s3 object %w", err)
-	}
-
-	return content, contentType, nil
+	return img, contentType, nil
 }
 
 func localCacheFilePath(p string, size Size, hd bool) string {
