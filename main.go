@@ -43,7 +43,6 @@ var s3entryPoint string
 var s3accessKey string
 var s3secretKey string
 var s3bucket string
-var s3RawBucket string
 var rawUpstream string
 
 func init() {
@@ -51,7 +50,6 @@ func init() {
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
-	pflag.StringVar(&s3RawBucket, "s3.raw-bucket", "", "s3 bucket to store raw files")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
 }
 
@@ -176,33 +174,25 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 		s3Path = "hd/" + s3Path
 	}
 
-	getter := func() ([]byte, string, error) {
-		// 生产环境走的是内网，不能用 https
-		sourceURL := "http://lain.bgm.tv/" + p
-		if hd {
-			sourceURL += "?hd=1"
-		}
-
-		img, err := client.R().SetContext(ctx).Get(sourceURL)
-		if err != nil {
-			return nil, "", err
-		}
-		if img.StatusCode() == 404 {
-			return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
-		}
-
-		if img.StatusCode() >= 300 {
-			return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
-		}
-
-		return img.Body(), img.Header().Get(echo.HeaderContentType), nil
+	// 生产环境走的是内网，不能用 https
+	sourceURL := "http://lain.bgm.tv/" + p
+	if hd {
+		sourceURL += "?hd=1"
 	}
 
-	if s3RawBucket == "" {
-		return getter()
+	img, err := client.R().SetContext(ctx).Get(sourceURL)
+	if err != nil {
+		return nil, "", err
+	}
+	if img.StatusCode() == 404 {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
 	}
 
-	return h.withS3Cached(ctx, s3RawBucket, s3Path, getter)
+	if img.StatusCode() >= 300 {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
+	}
+
+	return img.Body(), img.Header().Get(echo.HeaderContentType), nil
 }
 
 func (h Handle) processImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
