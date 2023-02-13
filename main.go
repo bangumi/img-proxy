@@ -102,16 +102,6 @@ func main() {
 		s3: s3(),
 	}
 
-	// raw image
-	e.GET("/pic/cover/l/*", func(c echo.Context) error {
-		p := c.Param("*")
-		return c.JSON(http.StatusOK, p)
-	})
-	e.GET("/pic/crt/l/*", func(c echo.Context) error {
-		p := c.Param("*")
-		return c.JSON(http.StatusOK, p)
-	})
-
 	e.GET("/r/:size/*", func(c echo.Context) error {
 		p := c.Param("*")
 		if p == "" {
