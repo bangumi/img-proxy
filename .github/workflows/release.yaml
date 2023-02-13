@@ -20,17 +20,7 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version-file: "go.mod"
-          check-latest: true
-
-      - name: Go Build Cache (build)
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg
-          key: go-cache-119-${{ hashFiles('**/go.sum') }}-build
-          restore-keys: |
-            go-cache-119-${{ hashFiles('**/go.sum') }}-
+          cache: true
 
       - run: echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
