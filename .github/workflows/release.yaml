@@ -26,6 +26,8 @@ jobs:
 
       - run: go build -o dist/img-proxy -trimpath -ldflags "-X 'main.version=$(git describe --match='v*' --tags)'"
         name: Build Binary
+        env:
+          CGO_ENABLED: '0'
 
       - uses: docker/login-action@v2
         with:
