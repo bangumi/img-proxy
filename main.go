@@ -102,6 +102,16 @@ func main() {
 		s3: s3(),
 	}
 
+	// raw image
+	e.GET("/pic/cover/l/*", func(c echo.Context) error {
+		p := c.Param("*")
+		return c.JSON(http.StatusOK, p)
+	})
+	e.GET("/pic/crt/l/*", func(c echo.Context) error {
+		p := c.Param("*")
+		return c.JSON(http.StatusOK, p)
+	})
+
 	e.GET("/r/:size/*", func(c echo.Context) error {
 		p := c.Param("*")
 		if p == "" {
@@ -145,7 +155,7 @@ func main() {
 			return err
 		}
 
-		c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=31536000, immutable")
+		c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=60, immutable")
 		return c.Blob(http.StatusOK, mimeType, b)
 	})
 
