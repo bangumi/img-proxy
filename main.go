@@ -32,6 +32,8 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/minio/minio-go/v7"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/samber/lo"
 	"github.com/spf13/pflag"
 )
@@ -100,6 +102,19 @@ func main() {
 
 	h := Handle{
 		s3: s3(),
+		cachedCounter: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "chii_img_cached_request_count",
+				Help: "Count of cached image request",
+			},
+		),
+
+		requestCounter: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "chii_img_all_request_count",
+				Help: "Count of all image request",
+			},
+		),
 	}
 
 	e.GET("/r/:size/*", func(c echo.Context) error {
@@ -149,6 +164,21 @@ func main() {
 		return c.Blob(http.StatusOK, mimeType, b)
 	})
 
+	{
+		prometheus.MustRegister(
+			h.requestCounter,
+			h.cachedCounter,
+			//h.cachedRequestHist,
+			//h.uncachedRequestHist,
+		)
+
+		hh := promhttp.Handler()
+		e.GET("/metrics", func(c echo.Context) error {
+			hh.ServeHTTP(c.Response(), c.Request())
+			return nil
+		})
+	}
+
 	host := os.Getenv("HTTP_HOST")
 	if host == "" {
 		host = "127.0.0.1"
@@ -166,6 +196,9 @@ var client = resty.New()
 
 type Handle struct {
 	s3 *minio.Client
+
+	cachedCounter  prometheus.Counter
+	requestCounter prometheus.Counter
 }
 
 func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
@@ -196,6 +229,7 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 }
 
 func (h Handle) processImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
+	h.requestCounter.Inc()
 	cachedPath := localCacheFilePath(p, size, hd)
 
 	return h.withS3Cached(ctx, s3bucket, cachedPath, func() ([]byte, string, error) {
@@ -248,6 +282,8 @@ func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, gette
 			return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
 		}
 		defer obj.Close()
+
+		h.cachedCounter.Inc()
 
 		raw, err := io.ReadAll(obj)
 		return raw, stat.ContentType, err
