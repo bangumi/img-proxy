@@ -16,8 +16,6 @@ import (
 )
 
 func NewHandler() Handle {
-	buckets := []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2}
-
 	h := Handle{
 		cache:  NewCache(),
 		client: resty.New(),
@@ -37,12 +35,12 @@ func NewHandler() Handle {
 
 		cachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "chii_img_cached_request_duration_seconds",
-			Buckets: buckets,
+			Buckets: []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2},
 		}),
 
 		uncachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "chii_img_uncached_request_duration_seconds",
-			Buckets: buckets,
+			Buckets: []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2, 3, 4, 5},
 		}),
 	}
 
