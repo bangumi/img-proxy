@@ -15,22 +15,20 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/rs/zerolog"
+
 	"github.com/labstack/echo/v4"
 	"github.com/minio/minio-go/v7"
 	"github.com/prometheus/client_golang/prometheus"
@@ -47,6 +45,7 @@ var s3accessKey string
 var s3secretKey string
 var s3bucket string
 var rawUpstream string
+var cacheSize int
 
 func init() {
 	pflag.StringVar(&s3entryPoint, "s3.entrypoint", "", "s3 url")
@@ -54,7 +53,10 @@ func init() {
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
+	pflag.IntVar(&cacheSize, "cache-size", 100000, "lru cache size")
 }
+
+var logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 func main() {
 	if lo.Contains(os.Args[1:], "--help") || lo.Contains(os.Args[1:], "-h") {
@@ -101,34 +103,7 @@ func main() {
 		return c.Render(http.StatusOK, "readme.gohtml", map[string]string{"readme": readmeMD, "version": version})
 	})
 
-	buckets := []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2}
-
-	h := Handle{
-		s3: s3(),
-		cachedCounter: prometheus.NewCounter(
-			prometheus.CounterOpts{
-				Name: "chii_img_cached_request_count",
-				Help: "Count of cached image request",
-			},
-		),
-
-		requestCounter: prometheus.NewCounter(
-			prometheus.CounterOpts{
-				Name: "chii_img_all_request_count",
-				Help: "Count of all image request",
-			},
-		),
-
-		cachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name:    "chii_img_cached_request_duration_seconds",
-			Buckets: buckets,
-		}),
-
-		uncachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name:    "chii_img_uncached_request_duration_seconds",
-			Buckets: buckets,
-		}),
-	}
+	h := NewHandler()
 
 	e.GET("/r/:size/*", func(c echo.Context) error {
 		p := c.Param("*")
@@ -225,13 +200,13 @@ func main() {
 	}
 
 	{
-		ok, err := h.s3.BucketExists(context.Background(), s3bucket)
+		ok, err := h.cache.s3.BucketExists(context.Background(), s3bucket)
 		if err != nil {
 			panic(err)
 		}
 
 		if !ok {
-			err := h.s3.MakeBucket(context.Background(), s3bucket, minio.MakeBucketOptions{})
+			err := h.cache.s3.MakeBucket(context.Background(), s3bucket, minio.MakeBucketOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -239,131 +214,6 @@ func main() {
 	}
 
 	e.Logger.Fatal(e.Start(host + ":" + port))
-}
-
-var client = resty.New()
-
-type Handle struct {
-	s3 *minio.Client
-
-	cachedCounter       prometheus.Counter
-	requestCounter      prometheus.Counter
-	cachedRequestHist   prometheus.Histogram
-	uncachedRequestHist prometheus.Histogram
-}
-
-func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
-	s3Path := strings.TrimPrefix(p, "pic/")
-	if hd {
-		s3Path = "hd/" + s3Path
-	}
-
-	// 生产环境走的是内网，不能用 https
-	sourceURL := "http://lain.bgm.tv/" + p
-	if hd {
-		sourceURL += "?hd=1"
-	}
-
-	img, err := client.R().SetContext(ctx).Get(sourceURL)
-	if err != nil {
-		return nil, "", err
-	}
-	if img.StatusCode() == 404 {
-		return nil, "", echo.NewHTTPError(http.StatusNotFound, "image not found")
-	}
-
-	if img.StatusCode() >= 300 {
-		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, img.String())
-	}
-
-	return img.Body(), img.Header().Get(echo.HeaderContentType), nil
-}
-
-func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
-	cachedPath := localCacheFilePath(p, size, hd)
-
-	ctx := c.Request().Context()
-
-	return h.withS3Cached(c, s3bucket, cachedPath, func() ([]byte, string, error) {
-		img, ct, err := h.fetchRawImage(ctx, p, hd)
-		if err != nil {
-			return nil, "", err
-		}
-
-		action := "smartcrop"
-		if size.Height == 0 || size.Width == 0 {
-			action = "resize"
-		}
-
-		qs := url.Values{
-			"height": {strconv.FormatUint(size.Height, 10)},
-			"width":  {strconv.FormatUint(size.Width, 10)},
-			"field":  {"file"},
-		}
-
-		if path.Ext(path.Base(p)) == ".jpg" {
-			qs.Set("type", "jpeg")
-		}
-
-		upstreamUrl := upstream.String() + "/" + action + "?" + qs.Encode()
-
-		resp, err := client.R().SetContext(ctx).
-			SetMultipartField("file", filepath.Base(p), ct, bytes.NewBuffer(img)).
-			Post(upstreamUrl)
-		if err != nil {
-			return nil, "", err
-		}
-
-		content := resp.Body()
-
-		contentType := resp.Header().Get(echo.HeaderContentType)
-
-		if resp.StatusCode() > 300 {
-			return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "failed to process image: "+resp.String())
-		}
-
-		return content, contentType, nil
-	})
-}
-
-func (h Handle) withS3Cached(c echo.Context, bucket, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
-	ctx := c.Request().Context()
-	stat, err := h.s3.StatObject(ctx, bucket, filepath, minio.GetObjectOptions{})
-	if err == nil {
-		obj, err := h.s3.GetObject(ctx, bucket, filepath, minio.GetObjectOptions{})
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
-		}
-		defer obj.Close()
-
-		c.Set("cached", true)
-		raw, err := io.ReadAll(obj)
-		return raw, stat.ContentType, err
-	}
-
-	// stupid golang error handling
-	var e minio.ErrorResponse
-	if errors.As(err, &e) {
-		if e.Code != "NoSuchKey" {
-			return nil, "", err
-		}
-	} else {
-		return nil, "", err
-	}
-
-	img, contentType, err := getter()
-	if err != nil {
-		return nil, "", err
-	}
-
-	_, err = h.s3.PutObject(ctx, bucket, filepath, bytes.NewReader(img), int64(len(img)),
-		minio.PutObjectOptions{ContentType: contentType})
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to save raw image to s3 %w", err)
-	}
-
-	c.Set("cached", false)
-	return img, contentType, nil
 }
 
 func localCacheFilePath(p string, size Size, hd bool) string {

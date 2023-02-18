@@ -4,9 +4,11 @@ go 1.20
 
 require (
 	github.com/go-resty/resty/v2 v2.7.0
+	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/minio/minio-go/v7 v7.0.48
 	github.com/prometheus/client_golang v1.14.0
+	github.com/rs/zerolog v1.29.0
 	github.com/samber/lo v1.37.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
