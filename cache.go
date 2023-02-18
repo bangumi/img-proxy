@@ -69,7 +69,7 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		// stupid golang error handling
 		var e minio.ErrorResponse
 		if errors.As(err, &e) {
-			if e.Code != "NoSuchKey" {
+			if e.Code == "NoSuchKey" {
 				return Image{}, false, nil
 			}
 		}
