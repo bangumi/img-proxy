@@ -56,7 +56,12 @@ func init() {
 	pflag.IntVar(&cacheSize, "cache-size", 100000, "lru cache size")
 }
 
-var logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
+var logLevel = os.Getenv("LOG_LEVEL")
+
+var logger = zerolog.New(os.Stdout).
+	Level(lo.Must(zerolog.ParseLevel(lo.If(logLevel != "", logLevel).Else("info")))).
+	With().Timestamp().
+	Logger()
 
 func main() {
 	if lo.Contains(os.Args[1:], "--help") || lo.Contains(os.Args[1:], "-h") {
@@ -72,6 +77,7 @@ func main() {
 	}
 
 	e := echo.New()
+	e.HideBanner = true
 
 	e.Renderer = newRender()
 
@@ -172,7 +178,7 @@ func main() {
 					h.uncachedRequestHist.Observe(duration)
 				}
 			} else {
-				fmt.Println("request without ctx", c.Request().URL.Path)
+				logger.Info().Str("path", c.Request().URL.Path).Msg("request without ctx")
 			}
 
 			return nil
@@ -215,6 +221,7 @@ func main() {
 		}
 	}
 
+	logger.Info().Msg("start server")
 	e.Logger.Fatal(e.Start(host + ":" + port))
 }
 
