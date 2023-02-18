@@ -66,28 +66,26 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 	}
 
 	stat, err := c.s3.StatObject(ctx, c.bucket, key, minio.GetObjectOptions{})
-	if err == nil {
-		obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
-		if err != nil {
-			return Image{}, false, fmt.Errorf("failed to get raw image from s3: %w", err)
+	if err != nil {
+		// stupid golang error handling
+		var e minio.ErrorResponse
+		if errors.As(err, &e) {
+			if e.Code != "NoSuchKey" {
+				return Image{}, false, nil
+			}
 		}
-		defer obj.Close()
 
-		raw, err := io.ReadAll(obj)
-		return Image{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, err
-	}
-
-	// stupid golang error handling
-	var e minio.ErrorResponse
-	if errors.As(err, &e) {
-		if e.Code != "NoSuchKey" {
-			return Image{}, false, nil
-		}
-	} else {
 		return Image{}, false, err
 	}
 
-	return Image{}, false, nil
+	obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return Image{}, false, fmt.Errorf("failed to get raw image from s3: %w", err)
+	}
+	defer obj.Close()
+
+	raw, err := io.ReadAll(obj)
+	return Image{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, err
 }
 
 func (c *Cache) Set(ctx context.Context, key string, value Image) error {
