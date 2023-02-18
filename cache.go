@@ -68,7 +68,9 @@ func (c *Cache) Get(ctx context.Context, key string) (item CacheItem, exist bool
 }
 
 func (c *Cache) Set(ctx context.Context, key string, value CacheItem) error {
-	_, err := c.s3.PutObject(ctx, c.bucket, key, bytes.NewBuffer(value.body), int64(len(value.body)), minio.PutObjectOptions{})
+	_, err := c.s3.PutObject(ctx, c.bucket, key, bytes.NewBuffer(value.body), int64(len(value.body)), minio.PutObjectOptions{
+		ContentType: value.contentType,
+	})
 	if err != nil {
 		return err
 	}
