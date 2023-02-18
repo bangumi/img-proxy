@@ -148,7 +148,6 @@ func main() {
 		userSize := c.Param("size")
 		if userSize == "" {
 			return c.String(http.StatusNotFound, "")
-
 		}
 
 		size, err := ParseSize(userSize)
@@ -181,6 +180,10 @@ func main() {
 
 			if err := next(c); err != nil {
 				return err
+			}
+
+			if c.Response().Status != 200 {
+				return nil
 			}
 
 			duration := time.Since(start).Seconds()
@@ -322,7 +325,6 @@ func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size S
 }
 
 func (h Handle) withS3Cached(c echo.Context, bucket, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
-	c.Set("cached", true)
 	ctx := c.Request().Context()
 	stat, err := h.s3.StatObject(ctx, bucket, filepath, minio.GetObjectOptions{})
 	if err == nil {
@@ -332,6 +334,7 @@ func (h Handle) withS3Cached(c echo.Context, bucket, filepath string, getter fun
 		}
 		defer obj.Close()
 
+		c.Set("cached", true)
 		raw, err := io.ReadAll(obj)
 		return raw, stat.ContentType, err
 	}
@@ -346,7 +349,6 @@ func (h Handle) withS3Cached(c echo.Context, bucket, filepath string, getter fun
 		return nil, "", err
 	}
 
-	c.Set("cached", false)
 	img, contentType, err := getter()
 	if err != nil {
 		return nil, "", err
@@ -358,6 +360,7 @@ func (h Handle) withS3Cached(c echo.Context, bucket, filepath string, getter fun
 		return nil, "", fmt.Errorf("failed to save raw image to s3 %w", err)
 	}
 
+	c.Set("cached", false)
 	return img, contentType, nil
 }
 
