@@ -74,7 +74,7 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		defer obj.Close()
 
 		raw, err := io.ReadAll(obj)
-		return Image{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, nil
+		return Image{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, err
 	}
 
 	// stupid golang error handling
