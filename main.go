@@ -195,6 +195,8 @@ func main() {
 				} else {
 					h.uncachedRequestHist.Observe(duration)
 				}
+			} else {
+				fmt.Println("request without ctx", c.Request().URL.Path)
 			}
 
 			return nil
