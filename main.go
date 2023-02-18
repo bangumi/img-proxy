@@ -59,7 +59,7 @@ func init() {
 var logLevel = os.Getenv("LOG_LEVEL")
 
 var logger = zerolog.New(os.Stdout).
-	Level(lo.Must(zerolog.ParseLevel(lo.If(logLevel != "", logLevel).Else("info")))).
+	Level(lo.Must(zerolog.ParseLevel(lo.Switch[string, string](logLevel).Case("", "info").Default(logLevel)))).
 	With().Timestamp().
 	Logger()
 
