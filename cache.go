@@ -60,8 +60,7 @@ func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
-	_, cached := c.lru.Get(key)
-	if !cached {
+	if _, cached := c.lru.Get(key); !cached {
 		return Image{}, false, nil
 	}
 
