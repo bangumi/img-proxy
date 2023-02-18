@@ -42,6 +42,11 @@ type Cache struct {
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
+	_, cached := c.lru.Get(key)
+	if !cached {
+		return Image{}, false, nil
+	}
+
 	stat, err := c.s3.StatObject(ctx, c.bucket, key, minio.GetObjectOptions{})
 	if err == nil {
 		obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
