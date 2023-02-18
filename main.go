@@ -204,11 +204,7 @@ func main() {
 			h.uncachedRequestHist,
 		)
 
-		hh := promhttp.Handler()
-		e.GET("/metrics", func(c echo.Context) error {
-			hh.ServeHTTP(c.Response(), c.Request())
-			return nil
-		})
+		e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 	}
 
 	host := os.Getenv("HTTP_HOST")
