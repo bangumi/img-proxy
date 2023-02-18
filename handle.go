@@ -48,7 +48,7 @@ func NewHandler() Handle {
 }
 
 type Handle struct {
-	cache Cache
+	cache *Cache
 
 	client *resty.Client
 

@@ -184,6 +184,7 @@ func main() {
 			h.cachedCounter,
 			h.cachedRequestHist,
 			h.uncachedRequestHist,
+			h.cache,
 		)
 
 		e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))

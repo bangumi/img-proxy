@@ -9,6 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/minio/minio-go/v7"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Image struct {
@@ -17,7 +18,7 @@ type Image struct {
 	contentType string
 }
 
-func NewCache() Cache {
+func NewCache() *Cache {
 	s3Client := s3()
 
 	cache, err := lru.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
@@ -31,7 +32,14 @@ func NewCache() Cache {
 		panic(err)
 	}
 
-	return Cache{s3: s3Client, lru: cache, bucket: s3bucket}
+	return &Cache{
+		s3:     s3Client,
+		lru:    cache,
+		bucket: s3bucket,
+		cacheSizeCount: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "chii_img_lru_size",
+		}),
+	}
 }
 
 type Cache struct {
@@ -39,6 +47,16 @@ type Cache struct {
 	s3  *minio.Client
 
 	bucket string
+
+	cacheSizeCount prometheus.Gauge
+}
+
+func (c *Cache) Describe(descs chan<- *prometheus.Desc) {
+}
+
+func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
+	c.cacheSizeCount.Set(float64(c.lru.Len()))
+	metrics <- c.cacheSizeCount
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
