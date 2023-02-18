@@ -11,7 +11,7 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-type CacheItem struct {
+type Image struct {
 	body []byte
 
 	contentType string
@@ -41,33 +41,33 @@ type Cache struct {
 	bucket string
 }
 
-func (c *Cache) Get(ctx context.Context, key string) (item CacheItem, exist bool, err error) {
+func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
 	stat, err := c.s3.StatObject(ctx, c.bucket, key, minio.GetObjectOptions{})
 	if err == nil {
 		obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
 		if err != nil {
-			return CacheItem{}, false, fmt.Errorf("failed to get raw image from s3: %w", err)
+			return Image{}, false, fmt.Errorf("failed to get raw image from s3: %w", err)
 		}
 		defer obj.Close()
 
 		raw, err := io.ReadAll(obj)
-		return CacheItem{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, nil
+		return Image{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, nil
 	}
 
 	// stupid golang error handling
 	var e minio.ErrorResponse
 	if errors.As(err, &e) {
 		if e.Code != "NoSuchKey" {
-			return CacheItem{}, false, nil
+			return Image{}, false, nil
 		}
 	} else {
-		return CacheItem{}, false, err
+		return Image{}, false, err
 	}
 
-	return CacheItem{}, false, nil
+	return Image{}, false, nil
 }
 
-func (c *Cache) Set(ctx context.Context, key string, value CacheItem) error {
+func (c *Cache) Set(ctx context.Context, key string, value Image) error {
 	_, err := c.s3.PutObject(ctx, c.bucket, key, bytes.NewBuffer(value.body), int64(len(value.body)), minio.PutObjectOptions{
 		ContentType: value.contentType,
 	})

@@ -85,15 +85,15 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 	return img.Body(), img.Header().Get(echo.HeaderContentType), nil
 }
 
-func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
+func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size, hd bool) (Image, error) {
 	cachedPath := localCacheFilePath(p, size, hd)
 
 	ctx := c.Request().Context()
 
-	return h.withS3Cached(c, cachedPath, func() ([]byte, string, error) {
+	return h.withS3Cached(c, cachedPath, func() (Image, error) {
 		img, ct, err := h.fetchRawImage(ctx, p, hd)
 		if err != nil {
-			return nil, "", err
+			return Image{}, err
 		}
 
 		action := "smartcrop"
@@ -117,7 +117,7 @@ func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size S
 			SetMultipartField("file", filepath.Base(p), ct, bytes.NewBuffer(img)).
 			Post(upstreamUrl)
 		if err != nil {
-			return nil, "", err
+			return Image{}, err
 		}
 
 		content := resp.Body()
@@ -125,37 +125,34 @@ func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size S
 		contentType := resp.Header().Get(echo.HeaderContentType)
 
 		if resp.StatusCode() > 300 {
-			return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "failed to process image: "+resp.String())
+			return Image{}, echo.NewHTTPError(http.StatusInternalServerError, "failed to process image: "+resp.String())
 		}
 
-		return content, contentType, nil
+		return Image{body: content, contentType: contentType}, nil
 	})
 }
 
-func (h Handle) withS3Cached(c echo.Context, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
+func (h Handle) withS3Cached(c echo.Context, filepath string, getter func() (Image, error)) (Image, error) {
 	ctx := c.Request().Context()
 	item, cached, err := h.cache.Get(ctx, filepath)
 	if err != nil {
-		return nil, "", err
+		return Image{}, err
 	}
 
 	c.Set("cached", cached)
 
 	if cached {
-		return item.body, item.contentType, nil
+		return item, nil
 	}
 
-	img, contentType, err := getter()
+	image, err := getter()
 	if err != nil {
-		return nil, "", err
+		return Image{}, err
 	}
 
-	if err := h.cache.Set(ctx, filepath, CacheItem{
-		body:        img,
-		contentType: contentType,
-	}); err != nil {
+	if err := h.cache.Set(ctx, filepath, image); err != nil {
 		logger.Err(err).Msg("failed to set cache")
 	}
 
-	return img, contentType, nil
+	return image, nil
 }

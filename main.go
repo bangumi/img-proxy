@@ -142,13 +142,13 @@ func main() {
 			}
 		}
 
-		b, mimeType, err := h.processImage(c, upstream, p, size, hd)
+		image, err := h.processImage(c, upstream, p, size, hd)
 		if err != nil {
 			return err
 		}
 
 		c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=60, immutable")
-		return c.Blob(http.StatusOK, mimeType, b)
+		return c.Blob(http.StatusOK, image.contentType, image.body)
 	}, func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
