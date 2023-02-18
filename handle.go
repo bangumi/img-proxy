@@ -40,7 +40,7 @@ func NewHandler() Handle {
 
 		uncachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "chii_img_uncached_request_duration_seconds",
-			Buckets: []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2, 3, 4, 5},
+			Buckets: []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2, 3, 4, 5, 7.5, 10},
 		}),
 	}
 
