@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/labstack/echo/v4"
@@ -115,6 +116,11 @@ func main() {
 				Help: "Count of all image request",
 			},
 		),
+
+		requestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "chii_img_request_duration_seconds",
+			Buckets: nil,
+		}),
 	}
 
 	e.GET("/r/:size/*", func(c echo.Context) error {
@@ -162,12 +168,20 @@ func main() {
 
 		c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=60, immutable")
 		return c.Blob(http.StatusOK, mimeType, b)
+	}, func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			start := time.Now()
+			err := next(c)
+			h.requestHist.Observe(time.Since(start).Seconds())
+			return err
+		}
 	})
 
 	{
 		prometheus.MustRegister(
 			h.requestCounter,
 			h.cachedCounter,
+			h.requestHist,
 			//h.cachedRequestHist,
 			//h.uncachedRequestHist,
 		)
@@ -199,6 +213,7 @@ type Handle struct {
 
 	cachedCounter  prometheus.Counter
 	requestCounter prometheus.Counter
+	requestHist    prometheus.Histogram
 }
 
 func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
