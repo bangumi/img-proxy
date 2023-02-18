@@ -117,8 +117,13 @@ func main() {
 			},
 		),
 
-		requestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name:    "chii_img_request_duration_seconds",
+		cachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "chii_img_cached_request_duration_seconds",
+			Buckets: nil,
+		}),
+
+		uncachedRequestHist: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "chii_img_uncached_request_duration_seconds",
 			Buckets: nil,
 		}),
 	}
@@ -161,7 +166,7 @@ func main() {
 			}
 		}
 
-		b, mimeType, err := h.processImage(c.Request().Context(), upstream, p, size, hd)
+		b, mimeType, err := h.processImage(c, upstream, p, size, hd)
 		if err != nil {
 			return err
 		}
@@ -171,9 +176,23 @@ func main() {
 	}, func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
-			err := next(c)
-			h.requestHist.Observe(time.Since(start).Seconds())
-			return err
+
+			if err := next(c); err != nil {
+				return err
+			}
+
+			duration := time.Since(start).Seconds()
+			h.requestCounter.Inc()
+			if cached, ok := c.Get("cached").(bool); ok {
+				if cached {
+					h.cachedRequestHist.Observe(duration)
+					h.cachedCounter.Inc()
+				} else {
+					h.uncachedRequestHist.Observe(duration)
+				}
+			}
+
+			return nil
 		}
 	})
 
@@ -181,9 +200,8 @@ func main() {
 		prometheus.MustRegister(
 			h.requestCounter,
 			h.cachedCounter,
-			h.requestHist,
-			//h.cachedRequestHist,
-			//h.uncachedRequestHist,
+			h.cachedRequestHist,
+			h.uncachedRequestHist,
 		)
 
 		hh := promhttp.Handler()
@@ -203,6 +221,20 @@ func main() {
 		port = "8003"
 	}
 
+	{
+		ok, err := h.s3.BucketExists(context.Background(), s3bucket)
+		if err != nil {
+			panic(err)
+		}
+
+		if !ok {
+			err := h.s3.MakeBucket(context.Background(), s3bucket, minio.MakeBucketOptions{})
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+
 	e.Logger.Fatal(e.Start(host + ":" + port))
 }
 
@@ -211,9 +243,10 @@ var client = resty.New()
 type Handle struct {
 	s3 *minio.Client
 
-	cachedCounter  prometheus.Counter
-	requestCounter prometheus.Counter
-	requestHist    prometheus.Histogram
+	cachedCounter       prometheus.Counter
+	requestCounter      prometheus.Counter
+	cachedRequestHist   prometheus.Histogram
+	uncachedRequestHist prometheus.Histogram
 }
 
 func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
@@ -243,11 +276,12 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 	return img.Body(), img.Header().Get(echo.HeaderContentType), nil
 }
 
-func (h Handle) processImage(ctx context.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
-	h.requestCounter.Inc()
+func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size, hd bool) ([]byte, string, error) {
 	cachedPath := localCacheFilePath(p, size, hd)
 
-	return h.withS3Cached(ctx, s3bucket, cachedPath, func() ([]byte, string, error) {
+	ctx := c.Request().Context()
+
+	return h.withS3Cached(c, s3bucket, cachedPath, func() ([]byte, string, error) {
 		img, ct, err := h.fetchRawImage(ctx, p, hd)
 		if err != nil {
 			return nil, "", err
@@ -289,7 +323,9 @@ func (h Handle) processImage(ctx context.Context, upstream *url.URL, p string, s
 	})
 }
 
-func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
+func (h Handle) withS3Cached(c echo.Context, bucket, filepath string, getter func() ([]byte, string, error)) ([]byte, string, error) {
+	c.Set("cached", true)
+	ctx := c.Request().Context()
 	stat, err := h.s3.StatObject(ctx, bucket, filepath, minio.GetObjectOptions{})
 	if err == nil {
 		obj, err := h.s3.GetObject(ctx, bucket, filepath, minio.GetObjectOptions{})
@@ -297,8 +333,6 @@ func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, gette
 			return nil, "", fmt.Errorf("failed to get raw image from s3: %w", err)
 		}
 		defer obj.Close()
-
-		h.cachedCounter.Inc()
 
 		raw, err := io.ReadAll(obj)
 		return raw, stat.ContentType, err
@@ -314,6 +348,7 @@ func (h Handle) withS3Cached(ctx context.Context, bucket, filepath string, gette
 		return nil, "", err
 	}
 
+	c.Set("cached", false)
 	img, contentType, err := getter()
 	if err != nil {
 		return nil, "", err
