@@ -64,6 +64,8 @@ func NewCache() *Cache {
 		bucket: s3bucket,
 
 		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
+		memoryCacheHit:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_count"}),
+		memoryCacheMiss:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_miss_count"}),
 	}
 }
 
@@ -74,6 +76,8 @@ type Cache struct {
 	bucket string
 
 	memoryCacheRatio prometheus.Gauge
+	memoryCacheMiss  prometheus.Gauge
+	memoryCacheHit   prometheus.Gauge
 }
 
 func (c *Cache) Describe(chan<- *prometheus.Desc) {
@@ -82,6 +86,12 @@ func (c *Cache) Describe(chan<- *prometheus.Desc) {
 func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
 	c.memoryCacheRatio.Set(c.memory.Metrics.Ratio())
 	metrics <- c.memoryCacheRatio
+
+	c.memoryCacheHit.Set(float64(c.memory.Metrics.Hits()))
+	metrics <- c.memoryCacheHit
+
+	c.memoryCacheMiss.Set(float64(c.memory.Metrics.Misses()))
+	metrics <- c.memoryCacheMiss
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
