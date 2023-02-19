@@ -61,7 +61,7 @@ func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
 	if _, cached := c.lru.Get(key); !cached {
-		return Image{}, false, nil
+		return item, false, nil
 	}
 
 	stat, err := c.s3.StatObject(ctx, c.bucket, key, minio.GetObjectOptions{})
@@ -70,16 +70,17 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		var e minio.ErrorResponse
 		if errors.As(err, &e) {
 			if e.Code == "NoSuchKey" {
-				return Image{}, false, nil
+				c.lru.Remove(key)
+				return item, false, nil
 			}
 		}
 
-		return Image{}, false, err
+		return item, false, err
 	}
 
 	obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
-		return Image{}, false, fmt.Errorf("failed to get raw image from s3: %w", err)
+		return item, false, fmt.Errorf("failed to get raw image from s3: %w", err)
 	}
 	defer obj.Close()
 

@@ -78,6 +78,7 @@ func main() {
 
 	e := echo.New()
 	e.HideBanner = true
+	e.HidePort = true
 
 	e.Renderer = newRender()
 
@@ -220,8 +221,11 @@ func main() {
 		}
 	}
 
-	logger.Info().Msg("start server")
-	e.Logger.Fatal(e.Start(host + ":" + port))
+	logger.Info().Msg(fmt.Sprintf("start server http://%s:%s", host, port))
+	if err := e.Start(host + ":" + port); err != nil {
+		logger.Fatal().Err(err).Msg("failed to start server")
+	}
+
 }
 
 func localCacheFilePath(p string, size Size, hd bool) string {
