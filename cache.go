@@ -24,10 +24,10 @@ type Image struct {
 }
 
 func NewCache() *Cache {
-	s3Client := s3()
+	s3 := newS3Client()
 
 	//cache := lo.Must(memory.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
-	//	err := s3Client.RemoveObject(context.Background(), s3bucket, key, minio.RemoveObjectOptions{})
+	//	err := s3.RemoveObject(context.Background(), s3bucket, key, minio.RemoveObjectOptions{})
 	//	if err != nil {
 	//		logger.Err(err).Str("key", key).Msg("failed to remove object")
 	//	}
@@ -40,17 +40,35 @@ func NewCache() *Cache {
 		Metrics:     true,
 		OnEvict: func(item *ristretto.Item) {
 			v := item.Value.(*ristrettoItem)
-			err := s3Client.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
+			err := s3.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
 			if err != nil {
 				logger.Err(err).Str("key", v.key).Msg("failed to remove object")
 			}
 		},
 	}))
 
+	go func() {
+		files := s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
+			Prefix:    "/",
+			Recursive: true,
+		})
+
+		for file := range files {
+			if file.Err != nil {
+				logger.Err(file.Err).Msg("failed to list files")
+				break
+			}
+
+			key := "/" + file.Key
+			cache.Set(key, &ristrettoItem{key: key}, 1)
+		}
+	}()
+
 	return &Cache{
-		s3:               s3Client,
-		memory:           cache,
-		bucket:           s3bucket,
+		s3:     s3,
+		memory: cache,
+		bucket: s3bucket,
+
 		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
 	}
 }
@@ -92,7 +110,7 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 
 	obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
-		return item, false, fmt.Errorf("failed to get raw image from s3: %w", err)
+		return item, false, fmt.Errorf("failed to get raw image from newS3Client: %w", err)
 	}
 	defer obj.Close()
 
