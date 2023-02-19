@@ -27,10 +27,11 @@ func NewCache() *Cache {
 	s3 := newS3Client()
 
 	cache := lo.Must(ristretto.NewCache(&ristretto.Config{
-		NumCounters: int64(cacheSize * 10), // number of keys to track frequency of (10M).
-		MaxCost:     int64(cacheSize),
-		BufferItems: 64, // number of keys per Get buffer.
-		Metrics:     true,
+		NumCounters:        int64(cacheSize * 10), // number of keys to track frequency of (10M).
+		MaxCost:            int64(cacheSize),
+		BufferItems:        64, // number of keys per Get buffer.
+		Metrics:            true,
+		IgnoreInternalCost: true,
 		OnEvict: func(item *ristretto.Item) {
 			v := item.Value.(*ristrettoItem)
 			logger.Debug().Str("key", v.key).Msg("OnEvict")
@@ -41,8 +42,19 @@ func NewCache() *Cache {
 		},
 	}))
 
+	c := &Cache{
+		s3:     s3,
+		memory: cache,
+		bucket: s3bucket,
+
+		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
+		memoryCacheHit:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_count"}),
+		memoryCacheMiss:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_miss_count"}),
+		memorySize:       prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_size"}),
+	}
+
 	go func() {
-		files := s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
+		files := c.s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
 			Prefix:    "/",
 			Recursive: true,
 		})
@@ -55,20 +67,11 @@ func NewCache() *Cache {
 
 			key := "/" + file.Key
 			logger.Debug().Str("key", key).Msg("set memory cache")
-			cache.Set(key, &ristrettoItem{key: key}, 1)
+			c.memory.Set(key, &ristrettoItem{key: key}, 1)
 		}
 	}()
 
-	return &Cache{
-		s3:     s3,
-		memory: cache,
-		bucket: s3bucket,
-
-		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
-		memoryCacheHit:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_count"}),
-		memoryCacheMiss:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_miss_count"}),
-		memorySize:       prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_size"}),
-	}
+	return c
 }
 
 type Cache struct {
