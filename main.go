@@ -157,7 +157,8 @@ func main() {
 			return err
 		}
 
-		c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=600, immutable")
+		//c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=600, immutable")
+		c.Response().Header().Set(echo.HeaderCacheControl, "max-age=0")
 		return c.Blob(http.StatusOK, image.contentType, image.body)
 	}, func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
