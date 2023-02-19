@@ -53,6 +53,7 @@ func NewCache() *Cache {
 			}
 
 			key := "/" + file.Key
+			logger.Debug().Str("key", key).Msg("set memory cache")
 			cache.Set(key, &ristrettoItem{key: key}, 1)
 		}
 	}()
