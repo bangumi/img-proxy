@@ -46,6 +46,7 @@ var s3secretKey string
 var s3bucket string
 var rawUpstream string
 var cacheSize int
+var httpCacheHeader string
 
 func init() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
@@ -57,6 +58,7 @@ func init() {
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
 	pflag.IntVar(&cacheSize, "cache-size", 100000, "memory cache size")
+	pflag.StringVar(&httpCacheHeader, "http-cache-header",  "public, max-age=600, immutable", "http cache-control header")
 }
 
 var logLevel = os.Getenv("LOG_LEVEL")
@@ -157,8 +159,7 @@ func main() {
 			return err
 		}
 
-		//c.Response().Header().Set(echo.HeaderCacheControl, "public, max-age=600, immutable")
-		c.Response().Header().Set(echo.HeaderCacheControl, "max-age=0")
+		c.Response().Header().Set(echo.HeaderCacheControl, httpCacheHeader)
 		return c.Blob(http.StatusOK, image.contentType, image.body)
 	}, func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
