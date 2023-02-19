@@ -48,6 +48,9 @@ var rawUpstream string
 var cacheSize int
 
 func init() {
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+	zerolog.MessageFieldName = "msg"
+
 	pflag.StringVar(&s3entryPoint, "s3.entrypoint", "", "s3 url")
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")

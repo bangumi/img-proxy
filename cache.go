@@ -26,13 +26,6 @@ type Image struct {
 func NewCache() *Cache {
 	s3 := newS3Client()
 
-	//cache := lo.Must(memory.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
-	//	err := s3.RemoveObject(context.Background(), s3bucket, key, minio.RemoveObjectOptions{})
-	//	if err != nil {
-	//		logger.Err(err).Str("key", key).Msg("failed to remove object")
-	//	}
-	//}))
-
 	cache := lo.Must(ristretto.NewCache(&ristretto.Config{
 		NumCounters: int64(cacheSize), // number of keys to track frequency of (10M).
 		MaxCost:     int64(cacheSize),
