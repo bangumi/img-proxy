@@ -26,7 +26,7 @@ type Image struct {
 func NewCache() *Cache {
 	s3Client := s3()
 
-	//cache := lo.Must(lru.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
+	//cache := lo.Must(memory.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
 	//	err := s3Client.RemoveObject(context.Background(), s3bucket, key, minio.RemoveObjectOptions{})
 	//	if err != nil {
 	//		logger.Err(err).Str("key", key).Msg("failed to remove object")
@@ -48,35 +48,32 @@ func NewCache() *Cache {
 	}))
 
 	return &Cache{
-		s3:     s3Client,
-		lru:    cache,
-		bucket: s3bucket,
-		cacheSizeCount: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "chii_img_lru_size",
-		}),
+		s3:               s3Client,
+		memory:           cache,
+		bucket:           s3bucket,
+		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
 	}
 }
 
 type Cache struct {
-	lru *ristretto.Cache
-	s3  *minio.Client
+	memory *ristretto.Cache
+	s3     *minio.Client
 
 	bucket string
 
-	cacheSizeCount prometheus.Gauge
+	memoryCacheRatio prometheus.Gauge
 }
 
 func (c *Cache) Describe(chan<- *prometheus.Desc) {
 }
 
 func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
-	c.lru.Metrics.CostAdded()
-	//c.cacheSizeCount.Set(float64(c.lru.Len()))
-	//metrics <- c.cacheSizeCount
+	c.memoryCacheRatio.Set(c.memory.Metrics.Ratio())
+	metrics <- c.memoryCacheRatio
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
-	if _, cached := c.lru.Get(key); !cached {
+	if _, cached := c.memory.Get(key); !cached {
 		return item, false, nil
 	}
 
@@ -111,7 +108,7 @@ func (c *Cache) Set(ctx context.Context, key string, value Image) error {
 		return err
 	}
 
-	c.lru.Set(key, &ristrettoItem{key: key}, 1)
+	c.memory.Set(key, &ristrettoItem{key: key}, 1)
 
 	return nil
 }

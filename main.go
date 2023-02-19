@@ -53,7 +53,7 @@ func init() {
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
-	pflag.IntVar(&cacheSize, "cache-size", 100000, "lru cache size")
+	pflag.IntVar(&cacheSize, "cache-size", 100000, "memory cache size")
 }
 
 var logLevel = os.Getenv("LOG_LEVEL")
