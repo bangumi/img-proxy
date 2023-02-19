@@ -33,6 +33,7 @@ func NewCache() *Cache {
 		Metrics:     true,
 		OnEvict: func(item *ristretto.Item) {
 			v := item.Value.(*ristrettoItem)
+			logger.Debug().Str("key", v.key).Msg("OnEvict")
 			err := s3.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
 			if err != nil {
 				logger.Err(err).Str("key", v.key).Msg("failed to remove object")
