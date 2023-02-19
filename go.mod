@@ -3,8 +3,8 @@ module imgproxy
 go 1.20
 
 require (
+	github.com/dgraph-io/ristretto v0.1.1
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/minio/minio-go/v7 v7.0.48
 	github.com/prometheus/client_golang v1.14.0
@@ -19,6 +19,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -32,6 +33,7 @@ require (
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect

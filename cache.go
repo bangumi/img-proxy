@@ -7,10 +7,15 @@ import (
 	"fmt"
 	"io"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/dgraph-io/ristretto"
 	"github.com/minio/minio-go/v7"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/samber/lo"
 )
+
+type ristrettoItem struct {
+	key string
+}
 
 type Image struct {
 	body []byte
@@ -21,16 +26,26 @@ type Image struct {
 func NewCache() *Cache {
 	s3Client := s3()
 
-	cache, err := lru.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
-		err := s3Client.RemoveObject(context.Background(), s3bucket, key, minio.RemoveObjectOptions{})
-		if err != nil {
-			logger.Err(err).Str("key", key).Msg("failed to remove object")
-		}
-	})
+	//cache := lo.Must(lru.NewWithEvict[string, bool](cacheSize, func(key string, value bool) {
+	//	err := s3Client.RemoveObject(context.Background(), s3bucket, key, minio.RemoveObjectOptions{})
+	//	if err != nil {
+	//		logger.Err(err).Str("key", key).Msg("failed to remove object")
+	//	}
+	//}))
 
-	if err != nil {
-		panic(err)
-	}
+	cache := lo.Must(ristretto.NewCache(&ristretto.Config{
+		NumCounters: int64(cacheSize), // number of keys to track frequency of (10M).
+		MaxCost:     int64(cacheSize),
+		BufferItems: 64, // number of keys per Get buffer.
+		Metrics:     true,
+		OnEvict: func(item *ristretto.Item) {
+			v := item.Value.(*ristrettoItem)
+			err := s3Client.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
+			if err != nil {
+				logger.Err(err).Str("key", v.key).Msg("failed to remove object")
+			}
+		},
+	}))
 
 	return &Cache{
 		s3:     s3Client,
@@ -43,7 +58,7 @@ func NewCache() *Cache {
 }
 
 type Cache struct {
-	lru *lru.Cache[string, bool]
+	lru *ristretto.Cache
 	s3  *minio.Client
 
 	bucket string
@@ -51,12 +66,13 @@ type Cache struct {
 	cacheSizeCount prometheus.Gauge
 }
 
-func (c *Cache) Describe(descs chan<- *prometheus.Desc) {
+func (c *Cache) Describe(chan<- *prometheus.Desc) {
 }
 
 func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
-	c.cacheSizeCount.Set(float64(c.lru.Len()))
-	metrics <- c.cacheSizeCount
+	c.lru.Metrics.CostAdded()
+	//c.cacheSizeCount.Set(float64(c.lru.Len()))
+	//metrics <- c.cacheSizeCount
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
@@ -70,7 +86,6 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		var e minio.ErrorResponse
 		if errors.As(err, &e) {
 			if e.Code == "NoSuchKey" {
-				c.lru.Remove(key)
 				return item, false, nil
 			}
 		}
@@ -96,7 +111,7 @@ func (c *Cache) Set(ctx context.Context, key string, value Image) error {
 		return err
 	}
 
-	c.lru.Add(key, true)
+	c.lru.Set(key, &ristrettoItem{key: key}, 1)
 
 	return nil
 }
