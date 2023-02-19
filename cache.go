@@ -67,6 +67,7 @@ func NewCache() *Cache {
 		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
 		memoryCacheHit:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_count"}),
 		memoryCacheMiss:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_miss_count"}),
+		memorySize:       prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_size"}),
 	}
 }
 
@@ -79,6 +80,7 @@ type Cache struct {
 	memoryCacheRatio prometheus.Gauge
 	memoryCacheMiss  prometheus.Gauge
 	memoryCacheHit   prometheus.Gauge
+	memorySize       prometheus.Gauge
 }
 
 func (c *Cache) Describe(chan<- *prometheus.Desc) {
@@ -93,6 +95,9 @@ func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
 
 	c.memoryCacheMiss.Set(float64(c.memory.Metrics.Misses()))
 	metrics <- c.memoryCacheMiss
+
+	c.memorySize.Set(float64(c.memory.Metrics.CostAdded() - c.memory.Metrics.CostEvicted()))
+	metrics <- c.memorySize
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
