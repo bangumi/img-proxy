@@ -27,7 +27,7 @@ func NewCache() *Cache {
 	s3 := newS3Client()
 
 	cache := lo.Must(ristretto.NewCache(&ristretto.Config{
-		NumCounters: int64(cacheSize), // number of keys to track frequency of (10M).
+		NumCounters: int64(cacheSize * 10), // number of keys to track frequency of (10M).
 		MaxCost:     int64(cacheSize),
 		BufferItems: 64, // number of keys per Get buffer.
 		Metrics:     true,
