@@ -2,13 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>Trim21/renovate-config",
-    "local>Trim21/renovate-config:monthly"
-  ],
-  "separateMinorPatch": false,
-  "separateMajorMinor": true,
-  "separateMultipleMajor": true,
-  "postUpdateOptions": [
-    "gomodTidy1.17"
+    "local>Trim21/renovate-config:monthly",
+    "local>Trim21/renovate-config:go"
   ],
   "packageRules": [
     {
@@ -17,12 +12,6 @@
       ],
       "matchPackageNames": [
         "mysql"
-      ],
-      "enabled": false
-    },
-    {
-      "matchPackageNames": [
-        "go"
       ],
       "enabled": false
     },
