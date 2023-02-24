@@ -14,13 +14,6 @@
         "mysql"
       ],
       "enabled": false
-    },
-    {
-      "groupName": "gomod",
-      "matchManagers": [
-        "gomod"
-      ],
-      "semanticCommitType": "build"
     }
   ]
 }
