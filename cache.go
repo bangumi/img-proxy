@@ -49,14 +49,36 @@ func NewCache() *Cache {
 		s3:     s3,
 		memory: cache,
 		bucket: s3bucket,
-
-		memoryCacheRatio: prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"}),
-		memoryCacheHit:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_count"}),
-		memoryCacheMiss:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_miss_count"}),
-		memorySize:       prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_size"}),
 	}
 
 	if cacheSize != 0 {
+		c.memoryCacheRatio = prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_radio"},
+			func() float64 {
+				return c.memory.Metrics.Ratio()
+			},
+		)
+
+		c.memoryCacheHit = prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{Name: "chii_img_memory_cache_hit_count"},
+			func() float64 {
+				return float64(c.memory.Metrics.Hits())
+			},
+		)
+
+		c.memoryCacheMiss = prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{Name: "chii_img_memory_cache_miss_count"}, func() float64 {
+				return float64(c.memory.Metrics.Misses())
+			},
+		)
+
+		c.memorySize = prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{Name: "chii_img_memory_cache_size"},
+			func() float64 {
+				return float64(c.memory.Metrics.CostAdded() - c.memory.Metrics.CostEvicted())
+			},
+		)
+
 		go func() {
 			files := c.s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
 				Prefix:    "/",
@@ -85,10 +107,10 @@ type Cache struct {
 
 	bucket string
 
-	memoryCacheRatio prometheus.Gauge
-	memoryCacheMiss  prometheus.Gauge
-	memoryCacheHit   prometheus.Gauge
-	memorySize       prometheus.Gauge
+	memoryCacheRatio prometheus.GaugeFunc
+	memoryCacheMiss  prometheus.GaugeFunc
+	memoryCacheHit   prometheus.GaugeFunc
+	memorySize       prometheus.GaugeFunc
 }
 
 func (c *Cache) Describe(chan<- *prometheus.Desc) {
@@ -99,16 +121,9 @@ func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	c.memoryCacheRatio.Set(c.memory.Metrics.Ratio())
 	metrics <- c.memoryCacheRatio
-
-	c.memoryCacheHit.Set(float64(c.memory.Metrics.Hits()))
 	metrics <- c.memoryCacheHit
-
-	c.memoryCacheMiss.Set(float64(c.memory.Metrics.Misses()))
 	metrics <- c.memoryCacheMiss
-
-	c.memorySize.Set(float64(c.memory.Metrics.CostAdded() - c.memory.Metrics.CostEvicted()))
 	metrics <- c.memorySize
 }
 
