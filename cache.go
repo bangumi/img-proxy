@@ -26,21 +26,24 @@ type Image struct {
 func NewCache() *Cache {
 	s3 := newS3Client()
 
-	cache := lo.Must(ristretto.NewCache(&ristretto.Config{
-		NumCounters:        int64(cacheSize * 10), // number of keys to track frequency of (10M).
-		MaxCost:            int64(cacheSize),
-		BufferItems:        64, // number of keys per Get buffer.
-		Metrics:            true,
-		IgnoreInternalCost: true,
-		OnEvict: func(item *ristretto.Item) {
-			v := item.Value.(*ristrettoItem)
-			logger.Debug().Str("key", v.key).Msg("OnEvict")
-			err := s3.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
-			if err != nil {
-				logger.Err(err).Str("key", v.key).Msg("failed to remove object")
-			}
-		},
-	}))
+	var cache *ristretto.Cache
+	if cacheSize != 0 {
+		cache = lo.Must(ristretto.NewCache(&ristretto.Config{
+			NumCounters:        int64(cacheSize * 10), // number of keys to track frequency of (10M).
+			MaxCost:            int64(cacheSize),
+			BufferItems:        64, // number of keys per Get buffer.
+			Metrics:            true,
+			IgnoreInternalCost: true,
+			OnEvict: func(item *ristretto.Item) {
+				v := item.Value.(*ristrettoItem)
+				logger.Debug().Str("key", v.key).Msg("OnEvict")
+				err := s3.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
+				if err != nil {
+					logger.Err(err).Str("key", v.key).Msg("failed to remove object")
+				}
+			},
+		}))
+	}
 
 	c := &Cache{
 		s3:     s3,
@@ -53,23 +56,25 @@ func NewCache() *Cache {
 		memorySize:       prometheus.NewGauge(prometheus.GaugeOpts{Name: "chii_img_memory_cache_size"}),
 	}
 
-	go func() {
-		files := c.s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
-			Prefix:    "/",
-			Recursive: true,
-		})
+	if cacheSize != 0 {
+		go func() {
+			files := c.s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
+				Prefix:    "/",
+				Recursive: true,
+			})
 
-		for file := range files {
-			if file.Err != nil {
-				logger.Err(file.Err).Msg("failed to list files")
-				break
+			for file := range files {
+				if file.Err != nil {
+					logger.Err(file.Err).Msg("failed to list files")
+					break
+				}
+
+				key := "/" + file.Key
+				logger.Debug().Str("key", key).Msg("set memory cache")
+				c.memory.Set(key, &ristrettoItem{key: key}, 1)
 			}
-
-			key := "/" + file.Key
-			logger.Debug().Str("key", key).Msg("set memory cache")
-			c.memory.Set(key, &ristrettoItem{key: key}, 1)
-		}
-	}()
+		}()
+	}
 
 	return c
 }
@@ -90,6 +95,10 @@ func (c *Cache) Describe(chan<- *prometheus.Desc) {
 }
 
 func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
+	if cacheSize == 0 {
+		return
+	}
+
 	c.memoryCacheRatio.Set(c.memory.Metrics.Ratio())
 	metrics <- c.memoryCacheRatio
 
@@ -104,8 +113,10 @@ func (c *Cache) Collect(metrics chan<- prometheus.Metric) {
 }
 
 func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, err error) {
-	if _, cached := c.memory.Get(key); !cached {
-		return item, false, nil
+	if c.memory != nil {
+		if _, cached := c.memory.Get(key); !cached {
+			return item, false, nil
+		}
 	}
 
 	stat, err := c.s3.StatObject(ctx, c.bucket, key, minio.GetObjectOptions{})
@@ -139,7 +150,9 @@ func (c *Cache) Set(ctx context.Context, key string, value Image) error {
 		return err
 	}
 
-	c.memory.Set(key, &ristrettoItem{key: key}, 1)
+	if c.memory != nil {
+		c.memory.Set(key, &ristrettoItem{key: key}, 1)
+	}
 
 	return nil
 }
