@@ -84,22 +84,23 @@ func NewCache() *Cache {
 		)
 
 		go func() {
-			//c.s3.ListObjects(&s3.ListObjectsInput{})
-			//
-			//		context.Background(), s3bucket, minio.ListObjectsOptions{
-			//			Prefix:    "/",
-			//			Recursive: true,
-			//		}
-			//		for file := range files {
-			//			if file.Err != nil {
-			//				logger.Err(file.Err).Msg("failed to list files")
-			//				break
-			//			}
-			//
-			//			key := "/" + file.Key
-			//			logger.Debug().Str("key", key).Msg("set memory cache")
-			//			c.memory.Set(key, &ristrettoItem{key: key}, 1)
-			//		}
+			err := c.s3.ListObjectsV2Pages(&s3.ListObjectsV2Input{
+				Bucket: &s3bucket,
+				Prefix: lo.ToPtr("/"),
+			}, func(o *s3.ListObjectsV2Output, b bool) bool {
+				for _, file := range o.Contents {
+					key := "/" + *file.Key
+					logger.Debug().Str("key", key).Msg("set memory cache")
+					c.memory.Set(key, &ristrettoItem{key: key}, 1)
+				}
+
+				return true
+			})
+			if err != nil {
+				logger.Fatal().Err(err).Msg("failed to list objects")
+			} else {
+				logger.Info().Msg("finish loading s3 objects")
+			}
 		}()
 	}
 
