@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/dgraph-io/ristretto"
-	"github.com/minio/minio-go/v7"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 )
@@ -24,7 +25,7 @@ type Image struct {
 }
 
 func NewCache() *Cache {
-	s3 := newS3Client()
+	s3Client := newS3Client()
 
 	var cache *ristretto.Cache
 	if cacheSize != 0 {
@@ -37,7 +38,10 @@ func NewCache() *Cache {
 			OnEvict: func(item *ristretto.Item) {
 				v := item.Value.(*ristrettoItem)
 				logger.Debug().Str("key", v.key).Msg("OnEvict")
-				err := s3.RemoveObject(context.Background(), s3bucket, v.key, minio.RemoveObjectOptions{})
+				_, err := s3Client.DeleteObject(&s3.DeleteObjectInput{
+					Bucket: &s3bucket,
+					Key:    &v.key,
+				})
 				if err != nil {
 					logger.Err(err).Str("key", v.key).Msg("failed to remove object")
 				}
@@ -46,7 +50,7 @@ func NewCache() *Cache {
 	}
 
 	c := &Cache{
-		s3:     s3,
+		s3:     s3Client,
 		memory: cache,
 		bucket: s3bucket,
 	}
@@ -80,21 +84,22 @@ func NewCache() *Cache {
 		)
 
 		go func() {
-			files := c.s3.ListObjects(context.Background(), s3bucket, minio.ListObjectsOptions{
-				Prefix:    "/",
-				Recursive: true,
-			})
-
-			for file := range files {
-				if file.Err != nil {
-					logger.Err(file.Err).Msg("failed to list files")
-					break
-				}
-
-				key := "/" + file.Key
-				logger.Debug().Str("key", key).Msg("set memory cache")
-				c.memory.Set(key, &ristrettoItem{key: key}, 1)
-			}
+			//c.s3.ListObjects(&s3.ListObjectsInput{})
+			//
+			//		context.Background(), s3bucket, minio.ListObjectsOptions{
+			//			Prefix:    "/",
+			//			Recursive: true,
+			//		}
+			//		for file := range files {
+			//			if file.Err != nil {
+			//				logger.Err(file.Err).Msg("failed to list files")
+			//				break
+			//			}
+			//
+			//			key := "/" + file.Key
+			//			logger.Debug().Str("key", key).Msg("set memory cache")
+			//			c.memory.Set(key, &ristrettoItem{key: key}, 1)
+			//		}
 		}()
 	}
 
@@ -103,7 +108,7 @@ func NewCache() *Cache {
 
 type Cache struct {
 	memory *ristretto.Cache
-	s3     *minio.Client
+	s3     *s3.S3
 
 	bucket string
 
@@ -134,32 +139,29 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		}
 	}
 
-	stat, err := c.s3.StatObject(ctx, c.bucket, key, minio.GetObjectOptions{})
+	obj, err := c.s3.GetObjectWithContext(ctx, &s3.GetObjectInput{Bucket: &s3bucket, Key: &key})
 	if err != nil {
-		// stupid golang error handling
-		var e minio.ErrorResponse
+		var e awserr.Error
 		if errors.As(err, &e) {
-			if e.Code == "NoSuchKey" {
+			if e.Code() == s3.ErrCodeNoSuchKey {
 				return item, false, nil
 			}
 		}
 
-		return item, false, err
+		return item, false, fmt.Errorf("failed to get raw image from s3: %w", err)
 	}
+	defer obj.Body.Close()
 
-	obj, err := c.s3.GetObject(ctx, c.bucket, key, minio.GetObjectOptions{})
-	if err != nil {
-		return item, false, fmt.Errorf("failed to get raw image from newS3Client: %w", err)
-	}
-	defer obj.Close()
-
-	raw, err := io.ReadAll(obj)
-	return Image{body: raw, contentType: stat.Metadata.Get("Content-Type")}, true, err
+	raw, err := io.ReadAll(obj.Body)
+	return Image{body: raw, contentType: *obj.ContentType}, true, err
 }
 
 func (c *Cache) Set(ctx context.Context, key string, value Image) error {
-	_, err := c.s3.PutObject(ctx, c.bucket, key, bytes.NewBuffer(value.body), int64(len(value.body)), minio.PutObjectOptions{
-		ContentType: value.contentType,
+	_, err := c.s3.PutObjectWithContext(ctx, &s3.PutObjectInput{
+		Body:        bytes.NewReader(value.body),
+		Bucket:      &s3bucket,
+		ContentType: &value.contentType,
+		Key:         &key,
 	})
 	if err != nil {
 		return err

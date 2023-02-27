@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -30,7 +29,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/labstack/echo/v4"
-	"github.com/minio/minio-go/v7"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/samber/lo"
@@ -58,7 +56,7 @@ func init() {
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
 	pflag.IntVar(&cacheSize, "cache-size", 100000, "memory cache size")
-	pflag.StringVar(&httpCacheHeader, "http-cache-header",  "public, max-age=600, immutable", "http cache-control header")
+	pflag.StringVar(&httpCacheHeader, "http-cache-header", "public, max-age=600, immutable", "http cache-control header")
 }
 
 var logLevel = os.Getenv("LOG_LEVEL")
@@ -210,20 +208,6 @@ func main() {
 	port := os.Getenv("HTTP_PORT")
 	if port == "" {
 		port = "8003"
-	}
-
-	{
-		ok, err := h.cache.s3.BucketExists(context.Background(), s3bucket)
-		if err != nil {
-			panic(err)
-		}
-
-		if !ok {
-			err := h.cache.s3.MakeBucket(context.Background(), s3bucket, minio.MakeBucketOptions{})
-			if err != nil {
-				panic(err)
-			}
-		}
 	}
 
 	logger.Info().Msg(fmt.Sprintf("start server http://%s:%s", host, port))

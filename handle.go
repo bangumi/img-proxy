@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"path"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-resty/resty/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -43,6 +46,27 @@ func NewHandler() Handle {
 			Buckets: []float64{.005, .01, .025, .05, .1, .2, .3, .4, .5, 0.75, 1, 2, 3, 4, 5, 7.5, 10},
 		}),
 	}
+
+	func() {
+		_, err := h.cache.s3.HeadBucket(&s3.HeadBucketInput{Bucket: &s3bucket})
+		if err == nil {
+			return
+		}
+
+		var e awserr.Error
+		if !errors.As(err, &e) {
+			panic(err)
+		}
+
+		if e.Code() != s3.ErrCodeNoSuchBucket || e.Code() != "NotFound" {
+			panic(err)
+		}
+
+		_, err = h.cache.s3.CreateBucket(&s3.CreateBucketInput{Bucket: &s3bucket})
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	return h
 }
