@@ -145,6 +145,9 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		var e awserr.Error
 		if errors.As(err, &e) {
 			if e.Code() == s3.ErrCodeNoSuchKey {
+				if c.memory != nil {
+					c.memory.Del(key)
+				}
 				return item, false, nil
 			}
 		}
