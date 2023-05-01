@@ -3,7 +3,7 @@ module imgproxy
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go v1.44.234
+	github.com/aws/aws-sdk-go v1.44.253
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/labstack/echo/v4 v4.10.2
