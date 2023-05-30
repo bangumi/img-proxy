@@ -58,7 +58,7 @@ func NewHandler() Handle {
 			panic(err)
 		}
 
-		if e.Code() != s3.ErrCodeNoSuchBucket || e.Code() != "NotFound" {
+		if e.Code() != s3.ErrCodeNoSuchBucket && e.Code() != "NotFound" {
 			panic(err)
 		}
 
