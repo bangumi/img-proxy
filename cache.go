@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 )
 
@@ -37,13 +38,13 @@ func NewCache() *Cache {
 			IgnoreInternalCost: true,
 			OnEvict: func(item *ristretto.Item) {
 				v := item.Value.(*ristrettoItem)
-				logger.Debug().Str("key", v.key).Msg("OnEvict")
+				log.Debug().Str("key", v.key).Msg("OnEvict")
 				_, err := s3Client.DeleteObject(&s3.DeleteObjectInput{
 					Bucket: &s3bucket,
 					Key:    &v.key,
 				})
 				if err != nil {
-					logger.Err(err).Str("key", v.key).Msg("failed to remove object")
+					log.Err(err).Str("key", v.key).Msg("failed to remove object")
 				}
 			},
 		}))
@@ -90,16 +91,16 @@ func NewCache() *Cache {
 			}, func(o *s3.ListObjectsV2Output, b bool) bool {
 				for _, file := range o.Contents {
 					key := "/" + *file.Key
-					logger.Debug().Str("key", key).Msg("set memory cache")
+					log.Debug().Str("key", key).Msg("set memory cache")
 					c.memory.Set(key, &ristrettoItem{key: key}, 1)
 				}
 
 				return true
 			})
 			if err != nil {
-				logger.Fatal().Err(err).Msg("failed to list objects")
+				log.Fatal().Err(err).Msg("failed to list objects")
 			} else {
-				logger.Info().Msg("finish loading s3 objects")
+				log.Info().Msg("finish loading s3 objects")
 			}
 		}()
 	}

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,6 +51,9 @@ func init() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.MessageFieldName = "msg"
 
+	logLevel := os.Getenv("LOG_LEVEL")
+	log.Logger = log.Level(lo.Must(zerolog.ParseLevel(lo.If[string](logLevel == "", "info").Else(logLevel))))
+
 	pflag.StringVar(&s3entryPoint, "s3.entrypoint", "", "s3 url")
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
@@ -58,13 +62,6 @@ func init() {
 	pflag.IntVar(&cacheSize, "cache-size", 100000, "memory cache size")
 	pflag.StringVar(&httpCacheHeader, "http-cache-header", "public, max-age=600, immutable", "http cache-control header")
 }
-
-var logLevel = os.Getenv("LOG_LEVEL")
-
-var logger = zerolog.New(os.Stdout).
-	Level(lo.Must(zerolog.ParseLevel(lo.If[string](logLevel == "", "info").Else(logLevel)))).
-	With().Timestamp().
-	Logger()
 
 func main() {
 	if lo.Contains(os.Args[1:], "--help") || lo.Contains(os.Args[1:], "-h") {
@@ -181,7 +178,7 @@ func main() {
 					h.uncachedRequestHist.Observe(duration)
 				}
 			} else {
-				logger.Info().Str("path", c.Request().URL.Path).Msg("request without ctx")
+				log.Info().Str("path", c.Request().URL.Path).Msg("request without ctx")
 			}
 
 			return nil
@@ -210,9 +207,9 @@ func main() {
 		port = "8003"
 	}
 
-	logger.Info().Msg(fmt.Sprintf("start server http://%s:%s", host, port))
+	log.Info().Msg(fmt.Sprintf("start server http://%s:%s", host, port))
 	if err := e.Start(host + ":" + port); err != nil {
-		logger.Fatal().Err(err).Msg("failed to start server")
+		log.Fatal().Err(err).Msg("failed to start server")
 	}
 
 }

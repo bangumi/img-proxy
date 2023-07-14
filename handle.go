@@ -16,6 +16,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 )
 
 func NewHandler() Handle {
@@ -175,7 +176,7 @@ func (h Handle) withS3Cached(c echo.Context, filepath string, getter func() (Ima
 	}
 
 	if err := h.cache.Set(ctx, filepath, image); err != nil {
-		logger.Err(err).Msg("failed to set cache")
+		log.Err(err).Msg("failed to set cache")
 	}
 
 	return image, nil
