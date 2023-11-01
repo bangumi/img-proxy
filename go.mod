@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go v1.47.0
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/go-resty/resty/v2 v2.10.0
-	github.com/labstack/echo/v4 v4.11.1
+	github.com/labstack/echo/v4 v4.11.2
 	github.com/prometheus/client_golang v1.17.0
 	github.com/rs/zerolog v1.31.0
 	github.com/samber/lo v1.38.1
