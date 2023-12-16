@@ -9,7 +9,7 @@ require (
 	github.com/labstack/echo/v4 v4.11.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/rs/zerolog v1.31.0
-	github.com/samber/lo v1.38.1
+	github.com/samber/lo v1.39.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
 )
