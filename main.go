@@ -15,7 +15,6 @@
 package main
 
 import (
-	_ "embed"
 	"errors"
 	"fmt"
 	"net/http"
@@ -35,9 +34,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/pflag"
 )
-
-//go:embed readme.md
-var readmeMD string
 
 var s3entryPoint string
 var s3accessKey string
@@ -80,8 +76,6 @@ func main() {
 	e.HideBanner = true
 	e.HidePort = true
 
-	e.Renderer = newRender()
-
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		var ee *echo.HTTPError
 		if errors.As(err, &ee) {
@@ -103,11 +97,15 @@ func main() {
 	})
 
 	e.GET("/", func(c echo.Context) error {
-		return c.Render(http.StatusOK, "readme.gohtml", map[string]string{"readme": readmeMD, "version": version})
+		return c.Redirect(http.StatusFound, "https://github.com/bangumi/img-proxy#readme")
 	})
 
 	e.GET("/r/", func(c echo.Context) error {
-		return c.Render(http.StatusOK, "readme.gohtml", map[string]string{"readme": readmeMD, "version": version})
+		return c.Redirect(http.StatusFound, "https://github.com/bangumi/img-proxy#readme")
+	})
+
+	e.GET("/r/debug", func(c echo.Context) error {
+		return c.String(http.StatusOK, fmt.Sprintf("version: %s", version))
 	})
 
 	h := NewHandler()
