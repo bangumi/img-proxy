@@ -4,10 +4,6 @@ services:
   imaginary:
     image: h2non/imaginary
     command: -concurrency 20 -enable-url-source -allowed-origins https://lain.bgm.tv
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.imaginary.rule=PathPrefix(`/resize`, `/smartcrop`)"
-      - "traefik.http.routers.imaginary.entrypoints=web"
     ports:
       - '9000:9000'
 
