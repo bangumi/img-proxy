@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,9 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/pflag"
 )
+
+// injected version string
+var version = "development"
 
 var s3entryPoint string
 var s3accessKey string
@@ -105,7 +109,10 @@ func main() {
 	})
 
 	e.GET("/r/debug", func(c echo.Context) error {
-		return c.String(http.StatusOK, fmt.Sprintf("version: %s", version))
+		c.Response().Header().Set(echo.HeaderContentType, "text/plain")
+		fmt.Fprintf(c.Response(), "go version: %s %s\n", runtime.Version(), runtime.GOARCH)
+		fmt.Fprintf(c.Response(), "app version: %s\n", version)
+		return nil
 	})
 
 	h := NewHandler()
