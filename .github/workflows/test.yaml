@@ -21,7 +21,7 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Go Build Cache (build)
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
