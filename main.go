@@ -163,6 +163,8 @@ func main() {
 		return c.Blob(http.StatusOK, image.contentType, image.body)
 	}, func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			h.requestCounter.Inc()
+
 			start := time.Now()
 
 			if err := next(c); err != nil {
@@ -174,7 +176,6 @@ func main() {
 			}
 
 			duration := time.Since(start).Seconds()
-			h.requestCounter.Inc()
 			if cached, ok := c.Get("cached").(bool); ok {
 				if cached {
 					h.cachedRequestHist.Observe(duration)
