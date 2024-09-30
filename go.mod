@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/go-resty/resty/v2 v2.15.3
 	github.com/labstack/echo/v4 v4.12.0
-	github.com/prometheus/client_golang v1.20.2
+	github.com/prometheus/client_golang v1.20.4
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/lo v1.47.0
 	github.com/spf13/pflag v1.0.5
