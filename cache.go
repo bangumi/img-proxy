@@ -28,24 +28,25 @@ type Image struct {
 func NewCache() *Cache {
 	s3Client := newS3Client()
 
-	var cache *ristretto.Cache
+	var cache *ristretto.Cache[string, *ristrettoItem]
 	if cacheSize != 0 {
-		cache = lo.Must(ristretto.NewCache(&ristretto.Config{
+		cache = lo.Must(ristretto.NewCache[string, *ristrettoItem](&ristretto.Config[string, *ristrettoItem]{
 			NumCounters:        int64(cacheSize * 10), // number of keys to track frequency of (10M).
 			MaxCost:            int64(cacheSize),
 			BufferItems:        64, // number of keys per Get buffer.
 			Metrics:            true,
 			IgnoreInternalCost: true,
-			OnEvict: func(item *ristretto.Item) {
-				v := item.Value.(*ristrettoItem)
-				log.Debug().Str("key", v.key).Msg("OnEvict")
-				_, err := s3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-					Bucket: &s3bucket,
-					Key:    &v.key,
-				})
-				if err != nil {
-					log.Err(err).Str("key", v.key).Msg("failed to remove object")
-				}
+			OnEvict: func(item *ristretto.Item[*ristrettoItem]) {
+				go func() {
+					log.Debug().Str("key", item.Value.key).Msg("OnEvict")
+					_, err := s3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+						Bucket: &s3bucket,
+						Key:    &item.Value.key,
+					})
+					if err != nil {
+						log.Err(err).Str("key", item.Value.key).Msg("failed to remove object")
+					}
+				}()
 			},
 		}))
 	}
@@ -89,7 +90,7 @@ func NewCache() *Cache {
 }
 
 type Cache struct {
-	memory *ristretto.Cache
+	memory *ristretto.Cache[string, *ristrettoItem]
 	s3     *s3.Client
 
 	bucket string
