@@ -8,6 +8,9 @@ on:
     branches:
       - master
 
+env:
+  GOTOOLCHAIN: "local"
+
 jobs:
   docker:
     runs-on: ubuntu-24.04
