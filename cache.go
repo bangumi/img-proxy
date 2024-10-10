@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
@@ -39,7 +39,7 @@ func NewCache() *Cache {
 			OnEvict: func(item *ristretto.Item) {
 				v := item.Value.(*ristrettoItem)
 				log.Debug().Str("key", v.key).Msg("OnEvict")
-				_, err := s3Client.DeleteObject(&s3.DeleteObjectInput{
+				_, err := s3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
 					Bucket: &s3bucket,
 					Key:    &v.key,
 				})
@@ -83,26 +83,6 @@ func NewCache() *Cache {
 				return float64(c.memory.Metrics.CostAdded() - c.memory.Metrics.CostEvicted())
 			},
 		)
-
-		go func() {
-			err := c.s3.ListObjectsV2Pages(&s3.ListObjectsV2Input{
-				Bucket: &s3bucket,
-				Prefix: lo.ToPtr("/"),
-			}, func(o *s3.ListObjectsV2Output, b bool) bool {
-				for _, file := range o.Contents {
-					key := "/" + *file.Key
-					log.Debug().Str("key", key).Msg("set memory cache")
-					c.memory.Set(key, &ristrettoItem{key: key}, 1)
-				}
-
-				return true
-			})
-			if err != nil {
-				log.Fatal().Err(err).Msg("failed to list objects")
-			} else {
-				log.Info().Msg("finish loading s3 objects")
-			}
-		}()
 	}
 
 	return c
@@ -110,7 +90,7 @@ func NewCache() *Cache {
 
 type Cache struct {
 	memory *ristretto.Cache
-	s3     *s3.S3
+	s3     *s3.Client
 
 	bucket string
 
@@ -141,11 +121,11 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 		}
 	}
 
-	obj, err := c.s3.GetObjectWithContext(ctx, &s3.GetObjectInput{Bucket: &s3bucket, Key: &key})
+	obj, err := c.s3.GetObject(ctx, &s3.GetObjectInput{Bucket: &s3bucket, Key: &key})
 	if err != nil {
-		var e awserr.Error
+		var e smithy.APIError
 		if errors.As(err, &e) {
-			if e.Code() == s3.ErrCodeNoSuchKey {
+			if e.ErrorCode() == "NoSuchKey" {
 				if c.memory != nil {
 					c.memory.Del(key)
 				}
@@ -162,7 +142,7 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 }
 
 func (c *Cache) Set(ctx context.Context, key string, value Image) error {
-	_, err := c.s3.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
 		Body:        bytes.NewReader(value.body),
 		Bucket:      &s3bucket,
 		ContentType: &value.contentType,

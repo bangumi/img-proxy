@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/go-resty/resty/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,21 +49,21 @@ func NewHandler() Handle {
 	}
 
 	func() {
-		_, err := h.cache.s3.HeadBucket(&s3.HeadBucketInput{Bucket: &s3bucket})
+		_, err := h.cache.s3.HeadBucket(context.Background(), &s3.HeadBucketInput{Bucket: &s3bucket})
 		if err == nil {
 			return
 		}
 
-		var e awserr.Error
+		var e smithy.APIError
 		if !errors.As(err, &e) {
 			panic(err)
 		}
 
-		if e.Code() != s3.ErrCodeNoSuchBucket && e.Code() != "NotFound" {
+		if e.ErrorCode() != "NoSuchBucket" && e.ErrorCode() != "NotFound" && e.ErrorCode() != "NoSuchBucketException" {
 			panic(err)
 		}
 
-		_, err = h.cache.s3.CreateBucket(&s3.CreateBucketInput{Bucket: &s3bucket})
+		_, err = h.cache.s3.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: &s3bucket})
 		if err != nil {
 			panic(err)
 		}
