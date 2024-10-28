@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.41
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.1
 	github.com/aws/smithy-go v1.22.0
 	github.com/dgraph-io/ristretto v1.0.0
 	github.com/go-resty/resty/v2 v2.15.3
