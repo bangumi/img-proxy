@@ -9,7 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
