@@ -9,7 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
@@ -83,14 +82,23 @@ type Handle struct {
 	uncachedRequestHist prometheus.Histogram
 }
 
-func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
-	s3Path := strings.TrimPrefix(p, "pic/")
-	if hd {
-		s3Path = "hd/" + s3Path
+func convertWebpToJpgPath(p string) string {
+	if filepath.Ext(p) == ".webp" {
+		return p[:len(p)-len(".webp")] + ".jpg"
 	}
+	return p
+}
+
+func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
+	// s3Path := strings.TrimPrefix(p, "pic/")
+	// if hd {
+	// 	s3Path = "hd/" + s3Path
+	// }
+
+	imagePath := convertWebpToJpgPath(p)
 
 	// 生产环境走的是内网，不能用 https
-	sourceURL := "http://lain.bgm.tv/" + p
+	sourceURL := "http://lain.bgm.tv/" + imagePath
 	if hd {
 		sourceURL += "?hd=1"
 	}
