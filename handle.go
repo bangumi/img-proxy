@@ -132,8 +132,11 @@ func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size S
 			"field":  {"file"},
 		}
 
-		if path.Ext(path.Base(p)) == ".jpg" {
+		switch path.Ext(path.Base(p)) {
+		case ".jpg":
 			qs.Set("type", "jpeg")
+		case ".webp":
+			qs.Set("type", "webp")
 		}
 
 		upstreamUrl := upstream.String() + "/" + action + "?" + qs.Encode()
