@@ -7,9 +7,6 @@ on:
     tags:
       - "v*.*.*"
 
-env:
-  GOTOOLCHAIN: "local"
-
 jobs:
   docker:
     runs-on: ubuntu-24.04
@@ -17,11 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          cache: true
+      - uses: trim21/actions/setup-go@master
 
       - run: echo "SHA=$(git show --no-patch --no-notes --date=short-local --pretty='%as-%h')" >> $GITHUB_ENV
         env:
