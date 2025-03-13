@@ -8,9 +8,6 @@ on:
     branches:
       - master
 
-env:
-  GOTOOLCHAIN: "local"
-
 jobs:
   docker:
     runs-on: ubuntu-24.04
@@ -19,14 +16,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          cache: true
+        uses: trim21/actions/setup-go@master
 
-      - run: go get ./...
-
-      - run: go build -o dist/img-proxy
+      - run: go build -trimpath -o dist/img-proxy
         name: Build Binary
         env:
           CGO_ENABLED: '0'
