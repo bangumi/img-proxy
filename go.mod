@@ -1,6 +1,6 @@
 module imgproxy
 
-go 1.23.6
+go 1.23.7
 
 require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.61
