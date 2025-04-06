@@ -3,8 +3,8 @@ module imgproxy
 go 1.24.1
 
 require (
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.62
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.2
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.66
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.1
 	github.com/aws/smithy-go v1.22.3
 	github.com/dgraph-io/ristretto/v2 v2.1.0
 	github.com/go-resty/resty/v2 v2.16.5
