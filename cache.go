@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
@@ -53,6 +54,7 @@ func NewCache() *Cache {
 
 	c := &Cache{
 		s3:     s3Client,
+		s3TTL:  s3TTL,
 		memory: cache,
 		bucket: s3bucket,
 	}
@@ -92,6 +94,7 @@ func NewCache() *Cache {
 type Cache struct {
 	memory *ristretto.Cache[string, *ristrettoItem]
 	s3     *s3.Client
+	s3TTL  time.Duration
 
 	bucket string
 
@@ -143,11 +146,17 @@ func (c *Cache) Get(ctx context.Context, key string) (item Image, exist bool, er
 }
 
 func (c *Cache) Set(ctx context.Context, key string, value Image) error {
+	var expire *time.Time = nil
+	if c.s3TTL != 0 {
+		expire = lo.ToPtr(time.Now().Add(c.s3TTL))
+	}
+
 	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
 		Body:        bytes.NewReader(value.body),
 		Bucket:      &s3bucket,
 		ContentType: &value.contentType,
 		Key:         &key,
+		Expires:     expire,
 	})
 	if err != nil {
 		return err

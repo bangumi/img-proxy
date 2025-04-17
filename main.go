@@ -43,6 +43,7 @@ var s3entryPoint string
 var s3accessKey string
 var s3secretKey string
 var s3bucket string
+var s3TTL time.Duration
 var rawUpstream string
 var cacheSize int
 var httpCacheHeader string
@@ -58,6 +59,7 @@ func init() {
 	pflag.StringVar(&s3accessKey, "s3.access-key", "", "s3 access key")
 	pflag.StringVar(&s3secretKey, "s3.secret-key", "", "s3 secret key")
 	pflag.StringVar(&s3bucket, "s3.bucket", "img-resize", "s3 bucket name")
+	pflag.DurationVar(&s3TTL, "s3.ttl", 0, "s3 ttl")
 	pflag.StringVar(&rawUpstream, "upstream", "", "upstream imaginary url")
 	pflag.IntVar(&cacheSize, "cache-size", 100000, "memory cache size")
 	pflag.StringVar(&httpCacheHeader, "http-cache-header", "public, max-age=600, immutable", "http cache-control header")
