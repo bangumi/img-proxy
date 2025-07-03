@@ -11,7 +11,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/prometheus/client_golang v1.22.0
 	github.com/rs/zerolog v1.34.0
-	github.com/samber/lo v1.50.0
+	github.com/samber/lo v1.51.0
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 )
@@ -30,6 +30,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
