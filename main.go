@@ -22,7 +22,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -106,10 +105,6 @@ func main() {
 		return c.Redirect(http.StatusFound, "https://github.com/bangumi/img-proxy#readme")
 	})
 
-	e.GET("/r/", func(c echo.Context) error {
-		return c.Redirect(http.StatusFound, "https://github.com/bangumi/img-proxy#readme")
-	})
-
 	e.GET("/r/debug", func(c echo.Context) error {
 		c.Response().Header().Set(echo.HeaderContentType, "text/plain")
 		fmt.Fprintf(c.Response(), "go version: %s %s\n", runtime.Version(), runtime.GOARCH)
@@ -148,15 +143,7 @@ func main() {
 			return invalidSizeErr
 		}
 
-		var hd bool
-		if c.QueryParams().Has("hd") {
-			hd, err = strconv.ParseBool(c.QueryParams().Get("hd"))
-			if err != nil {
-				return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid query 'hd' %q, should present a bool", c.QueryParams().Get("hd")))
-			}
-		}
-
-		image, err := h.processImage(c, upstream, p, size, hd)
+		image, err := h.processImage(c, upstream, p, size)
 		if err != nil {
 			return err
 		}
@@ -222,17 +209,7 @@ func main() {
 
 }
 
-func localCacheFilePath(p string, size Size, hd bool) string {
-	fs := hashFilename(p, size)
-
-	if hd {
-		return "/hd" + fs
-	}
-
-	return fs
-}
-
-func hashFilename(p string, size Size) string {
+func localCacheFilePath(p string, size Size) string {
 	return fmt.Sprintf("/%s/%s@%dx%d", path.Dir(p), path.Base(p), size.Width, size.Height)
 }
 
@@ -261,5 +238,26 @@ func blockedPath(p string) error {
 		}
 	}
 
-	return nil
+	if strings.HasPrefix(p, "pic/photos/") {
+		if !strings.HasPrefix(p, "pic/photos/l/") {
+			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/photos/l/' path instead")
+		}
+	}
+
+	if strings.HasPrefix(p, "pic/photos/") {
+		if !strings.HasPrefix(p, "pic/photos/l/") {
+			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/photos/l/' path instead")
+		}
+	}
+
+	if strings.HasPrefix(p, "pic/icon/") {
+		if !strings.HasPrefix(p, "pic/icon/l/") {
+			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/icon/l/' path instead")
+		}
+	}
+
+	return echo.NewHTTPError(
+		http.StatusBadRequest,
+		"requested url is not allowed yet, please send a issue",
+	)
 }

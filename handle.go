@@ -9,7 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
@@ -83,17 +82,9 @@ type Handle struct {
 	uncachedRequestHist prometheus.Histogram
 }
 
-func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, string, error) {
-	s3Path := strings.TrimPrefix(p, "pic/")
-	if hd {
-		s3Path = "hd/" + s3Path
-	}
-
-	// 生产环境走的是内网，不能用 https
+func (h Handle) fetchRawImage(ctx context.Context, p string) ([]byte, string, error) {
+	// 源站在cf后没有没有有效证书
 	sourceURL := "http://lain.bgm.tv/" + p
-	if hd {
-		sourceURL += "?hd=1"
-	}
 
 	img, err := h.client.R().SetContext(ctx).Get(sourceURL)
 	if err != nil {
@@ -110,13 +101,13 @@ func (h Handle) fetchRawImage(ctx context.Context, p string, hd bool) ([]byte, s
 	return img.Body(), img.Header().Get(echo.HeaderContentType), nil
 }
 
-func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size, hd bool) (Image, error) {
-	cachedPath := localCacheFilePath(p, size, hd)
+func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size) (Image, error) {
+	cachedPath := localCacheFilePath(p, size)
 
 	ctx := c.Request().Context()
 
 	return h.withS3Cached(c, cachedPath, func() (Image, error) {
-		img, ct, err := h.fetchRawImage(ctx, p, hd)
+		img, ct, err := h.fetchRawImage(ctx, p)
 		if err != nil {
 			return Image{}, err
 		}
