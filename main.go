@@ -120,6 +120,10 @@ func main() {
 			return c.String(http.StatusNotFound, "")
 		}
 
+		if strings.HasPrefix(p, "r/") {
+			return c.String(http.StatusBadRequest, "invalid path, please read docs")
+		}
+
 		if len(p) >= 100 {
 			return c.String(http.StatusBadRequest, "too lang url")
 		}
