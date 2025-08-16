@@ -222,42 +222,49 @@ func blockedPath(p string) error {
 		if !strings.HasPrefix(p, "pic/cover/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/cover/l/' path instead")
 		}
+		return nil
 	}
 
 	if strings.HasPrefix(p, "pic/photo/") {
 		if !strings.HasPrefix(p, "pic/photo/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/photo/l/' path instead")
 		}
+		return nil
 	}
 
 	if strings.HasPrefix(p, "pic/crt/") {
 		if !strings.HasPrefix(p, "pic/crt/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/crt/l/' path instead")
 		}
+		return nil
 	}
 
 	if strings.HasPrefix(p, "pic/user/") {
 		if !strings.HasPrefix(p, "pic/user/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/user/l/' path instead")
 		}
+		return nil
 	}
 
 	if strings.HasPrefix(p, "pic/photos/") {
 		if !strings.HasPrefix(p, "pic/photos/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/photos/l/' path instead")
 		}
+		return nil
 	}
 
 	if strings.HasPrefix(p, "pic/photos/") {
 		if !strings.HasPrefix(p, "pic/photos/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/photos/l/' path instead")
 		}
+		return nil
 	}
 
 	if strings.HasPrefix(p, "pic/icon/") {
 		if !strings.HasPrefix(p, "pic/icon/l/") {
 			return echo.NewHTTPError(http.StatusBadRequest, "please use '/r/<size>/pic/icon/l/' path instead")
 		}
+		return nil
 	}
 
 	return echo.NewHTTPError(
