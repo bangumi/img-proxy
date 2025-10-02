@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.0
 	github.com/aws/smithy-go v1.22.5
-	github.com/dgraph-io/ristretto/v2 v2.2.0
+	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/prometheus/client_golang v1.23.0
@@ -45,7 +45,7 @@ require (
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/telemetry v0.0.0-20240522233618-39ace7a40ae7 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
