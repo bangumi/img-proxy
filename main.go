@@ -28,7 +28,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/samber/lo"
@@ -78,34 +78,29 @@ func main() {
 	}
 
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
-	e.HTTPErrorHandler = func(err error, c echo.Context) {
+	e.HTTPErrorHandler = func(c *echo.Context, err error) {
 		var ee *echo.HTTPError
 		if errors.As(err, &ee) {
-			if msg, ok := ee.Message.(string); ok {
-				_ = c.String(ee.Code, msg)
-			} else {
-				_ = c.JSON(ee.Code, ee.Message)
-			}
-		} else {
-			_ = c.String(http.StatusInternalServerError, err.Error())
+			_ = c.String(ee.Code, ee.Message)
+			return
 		}
+
+		_ = c.String(http.StatusInternalServerError, err.Error())
 	}
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			c.Response().Header().Set("x-version", version)
 			return next(c)
 		}
 	})
 
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return c.Redirect(http.StatusFound, "https://github.com/bangumi/img-proxy#readme")
 	})
 
-	e.GET("/r/debug", func(c echo.Context) error {
+	e.GET("/r/debug", func(c *echo.Context) error {
 		c.Response().Header().Set(echo.HeaderContentType, "text/plain")
 		fmt.Fprintf(c.Response(), "go version: %s %s\n", runtime.Version(), runtime.GOARCH)
 		fmt.Fprintf(c.Response(), "app version: %s\n", version)
@@ -114,7 +109,7 @@ func main() {
 
 	h := NewHandler()
 
-	e.GET("/r/:size/*", func(c echo.Context) error {
+	e.GET("/r/:size/*", func(c *echo.Context) error {
 		p := c.Param("*")
 		if p == "" {
 			return c.String(http.StatusNotFound, "")
@@ -155,7 +150,7 @@ func main() {
 		c.Response().Header().Set(echo.HeaderCacheControl, httpCacheHeader)
 		return c.Blob(http.StatusOK, image.contentType, image.body)
 	}, func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			h.requestCounter.Inc()
 
 			start := time.Now()
@@ -164,7 +159,13 @@ func main() {
 				return err
 			}
 
-			if c.Response().Status != 200 {
+			resp, err := echo.UnwrapResponse(c.Response())
+			if err != nil {
+				log.Err(err).Msg("failed to unwrap response")
+				return nil
+			}
+
+			if resp.Status != 200 {
 				return nil
 			}
 

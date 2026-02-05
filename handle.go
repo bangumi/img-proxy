@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 	"github.com/go-resty/resty/v2"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 )
@@ -101,7 +101,7 @@ func (h Handle) fetchRawImage(ctx context.Context, p string) ([]byte, string, er
 	return img.Body(), img.Header().Get(echo.HeaderContentType), nil
 }
 
-func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size Size) (Image, error) {
+func (h Handle) processImage(c *echo.Context, upstream *url.URL, p string, size Size) (Image, error) {
 	cachedPath := localCacheFilePath(p, size)
 
 	ctx := c.Request().Context()
@@ -151,7 +151,7 @@ func (h Handle) processImage(c echo.Context, upstream *url.URL, p string, size S
 	})
 }
 
-func (h Handle) withS3Cached(c echo.Context, filepath string, getter func() (Image, error)) (Image, error) {
+func (h Handle) withS3Cached(c *echo.Context, filepath string, getter func() (Image, error)) (Image, error) {
 	ctx := c.Request().Context()
 	item, cached, err := h.cache.Get(ctx, filepath)
 	if err != nil {
