@@ -8,7 +8,7 @@ require (
 	github.com/aws/smithy-go v1.24.2
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/go-resty/resty/v2 v2.17.2
-	github.com/labstack/echo/v5 v5.0.3
+	github.com/labstack/echo/v5 v5.0.4
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/lo v1.52.0
