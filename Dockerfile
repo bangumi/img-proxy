@@ -1,4 +1,4 @@
-FROM powerman/dockerize@sha256:ef4239a9d48d3f8120e7244661445f039f912201daf3d6281e5c06c874db4538 AS dockerize
+FROM powerman/dockerize@sha256:717d6a9be2bc0a8420e2a59855b5eabf6f52bbabf3bd14d101392a42229e9954 AS dockerize
 
 FROM gcr.io/distroless/base-debian13
 
