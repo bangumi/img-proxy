@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.3
-	github.com/aws/smithy-go v1.27.6
+	github.com/aws/smithy-go v1.28.1
 	github.com/dgraph-io/ristretto/v2 v2.4.2
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/labstack/echo/v5 v5.3.1
