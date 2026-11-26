@@ -3,7 +3,8 @@
   "extends": [
     "local>Trim21/renovate-config",
     "local>Trim21/renovate-config:monthly",
-    "local>Trim21/renovate-config:go"
+    "local>Trim21/renovate-config:go",
+    "local>Trim21/renovate-config:app"
   ],
   "packageRules": [
     {
@@ -14,12 +15,6 @@
         "mysql"
       ],
       "enabled": false
-    },
-    {
-      "matchDatasources": [
-        "golang-version"
-      ],
-      "rangeStrategy": "bump"
     }
   ],
   "labels": [
